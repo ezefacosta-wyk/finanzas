@@ -11,10 +11,10 @@
   --ink:#1a1a1a;--ink2:#555;--ink3:#999;
   --surface:#fff;--surface2:#f7f6f3;--surface3:#f0ede8;
   --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.18);
-  --green:#1a7a4a;--green-bg:#e8f7ef;
-  --red:#b03030;--red-bg:#fdf0f0;
-  --amber:#8a5f10;--amber-bg:#fef7e6;
-  --blue:#1a4a8a;--blue-bg:#eef3fc;
+  --success:#1a7a4a;--success-bg:#e8f7ef;
+  --danger:#b03030;--danger-bg:#fdf0f0;
+  --warn:#8a5f10;--warn-bg:#fef7e6;
+  --info:#1a4a8a;--info-bg:#eef3fc;
   --teal:#0f6e56;--teal-bg:#e1f5ee;
   --accent:#2c5f9e;
   --page-bg:#f5f4f0;
@@ -24,10 +24,10 @@
     --ink:#f0ede8;--ink2:#aaa;--ink3:#666;
     --surface:#1c1c1e;--surface2:#242426;--surface3:#2c2c2e;
     --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
-    --green:#4ade80;--green-bg:rgba(74,222,128,0.12);
-    --red:#f87171;--red-bg:rgba(248,113,113,0.12);
-    --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
-    --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);
+    --success:#4ade80;--success-bg:rgba(74,222,128,0.12);
+    --danger:#f87171;--danger-bg:rgba(248,113,113,0.12);
+    --warn:#fbbf24;--warn-bg:rgba(251,191,36,0.12);
+    --info:#60a5fa;--info-bg:rgba(96,165,250,0.12);
     --teal:#5dcaa5;--teal-bg:rgba(93,202,165,0.12);
     --accent:#60a5fa;
     --page-bg:#111113;
@@ -36,186 +36,226 @@
 html,body{min-height:100vh;background:var(--page-bg)}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.5}
 .container{max-width:720px;margin:0 auto;padding:2rem 1.25rem 4rem}
-h1{font-size:22px;font-weight:500;color:var(--ink);margin-bottom:2px}
-h2{font-size:16px;font-weight:500;color:var(--ink);margin-bottom:12px}
-.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:8px}
-.month-nav{display:flex;align-items:center;gap:8px}
-.month-nav button{background:transparent;border:0.5px solid var(--border2);border-radius:8px;color:var(--ink);padding:6px 12px;cursor:pointer;font-size:14px}
+h2{font-size:16px;font-weight:500;margin-bottom:12px;color:var(--ink)}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.header h1{font-size:20px;font-weight:500}
+.header p{font-size:12px;color:var(--ink3)}
+.month-nav{display:flex;align-items:center;gap:6px}
+.month-nav button{background:transparent;border:0.5px solid var(--border2);border-radius:8px;color:var(--ink);padding:4px 10px;cursor:pointer;font-size:13px}
 .month-nav button:hover{background:var(--surface2)}
-.month-label{font-size:15px;font-weight:500;min-width:150px;text-align:center;color:var(--ink)}
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:1.5rem}
-.metric{background:var(--surface2);border-radius:8px;padding:12px 14px}
-.metric-label{font-size:12px;color:var(--ink3);margin-bottom:4px}
-.metric-value{font-size:20px;font-weight:500;color:var(--ink)}
-.metric-value.pos{color:var(--green)}
-.metric-value.neg{color:var(--red)}
-.tab-bar{display:flex;gap:4px;margin-bottom:1.25rem;border-bottom:0.5px solid var(--border);overflow-x:auto}
-.tab{padding:8px 16px;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--ink2);margin-bottom:-1px;white-space:nowrap}
-.tab.active{border-bottom-color:var(--accent);color:var(--accent);font-weight:500}
-.tab:hover{color:var(--ink)}
+.month-label{font-size:14px;font-weight:500;min-width:140px;text-align:center}
+.nav-tabs{display:flex;gap:2px;margin-bottom:1.25rem;border-bottom:0.5px solid var(--border);overflow-x:auto}
+.ntab{padding:7px 14px;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--ink2);margin-bottom:-1px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.ntab.active{border-bottom-color:var(--accent);color:var(--accent);font-weight:500}
+.ntab:hover{color:var(--ink)}
 .view{display:none}.view.active{display:block}
-.sections{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
-@media(max-width:520px){.sections{grid-template-columns:1fr}}
 .card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:1rem}
+.metric{background:var(--surface2);border-radius:8px;padding:11px 13px}
+.metric-label{font-size:11px;color:var(--ink3);margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.metric-val{font-size:19px;font-weight:500;color:var(--ink)}
+.metric-val.pos{color:var(--success)}
+.metric-val.neg{color:var(--danger)}
+.metric-val.teal{color:var(--teal)}
+.summary-table{width:100%;border-collapse:collapse;font-size:13px}
+.summary-table tr{border-bottom:0.5px solid var(--border)}
+.summary-table tr:last-child{border-bottom:none}
+.summary-table td{padding:7px 4px}
+.summary-table .lbl{color:var(--ink2);display:flex;align-items:center;gap:6px}
+.summary-table .amt{text-align:right;font-weight:500}
+.summary-table .total-row td{font-weight:500;border-top:0.5px solid var(--border2);padding-top:9px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.danger{background:var(--danger-bg);color:var(--danger)}
+.badge.success{background:var(--success-bg);color:var(--success)}
+.badge.info{background:var(--info-bg);color:var(--info)}
+.insight-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.sections2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:520px){.sections2{grid-template-columns:1fr}}
+.full{grid-column:1/-1}
 .field-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .field-row label{flex:1;font-size:13px;color:var(--ink2)}
-.field-row input{width:120px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right}
+.field-row input{width:120px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right}
 .field-row input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .add-row{display:flex;gap:6px;margin-top:8px}
-.add-row input{flex:1;padding:6px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px}
+.add-row input{flex:1;padding:5px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px}
 .add-row input:focus{outline:2px solid var(--accent);outline-offset:1px}
-.btn-sm{padding:6px 12px;border:0.5px solid var(--border2);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer;font-size:13px;white-space:nowrap}
-.btn-sm:hover{background:var(--surface2)}
-.btn-sm.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-sm.primary:hover{opacity:0.9}
-.btn-icon{background:transparent;border:none;color:var(--ink3);cursor:pointer;padding:2px 6px;font-size:16px;line-height:1}
-.btn-icon:hover{color:var(--red)}
-.item-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.btn{padding:5px 11px;border:0.5px solid var(--border2);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer;font-size:13px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{opacity:.9}
+.btn.danger-btn{border-color:var(--danger);color:var(--danger)}
+.btn.danger-btn:hover{background:var(--danger-bg)}
+.btn-icon{background:transparent;border:none;color:var(--ink3);cursor:pointer;padding:2px 5px;font-size:15px;line-height:1}
+.btn-icon:hover{color:var(--danger)}
+.item-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid var(--border)}
 .item-row:last-child{border-bottom:none}
 .item-name{flex:1;font-size:13px;color:var(--ink)}
-.item-amount{font-size:13px;font-weight:500;color:var(--ink);min-width:90px;text-align:right}
-.tarjeta-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem}
-.tarjeta-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
-.tarjeta-title{font-size:14px;font-weight:500;color:var(--ink)}
-.tarjeta-rename{background:transparent;border:none;color:var(--ink2);font-size:12px;text-align:right;max-width:140px;padding:2px 4px;border-radius:4px}
-.tarjeta-rename:hover{background:var(--surface2)}
-.tarjeta-rename:focus{outline:1px solid var(--accent)}
-.tarjeta-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.tarjeta-field{display:flex;flex-direction:column;gap:3px}
-.tarjeta-field label{font-size:11px;color:var(--ink3)}
-.tarjeta-field .prefix{display:flex;align-items:center;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);overflow:hidden}
-.tarjeta-field .prefix span{padding:6px 7px;font-size:11px;font-weight:500;color:var(--ink3);border-right:0.5px solid var(--border2);background:var(--surface3);white-space:nowrap}
-.tarjeta-field .prefix input{border:none;background:transparent;flex:1;min-width:0;padding:6px 8px;color:var(--ink);font-size:13px}
-.tarjeta-field .prefix input:focus{outline:none}
-.usd-section{margin-top:6px;padding-top:10px;border-top:0.5px dashed var(--border2)}
-.usd-label{font-size:11px;color:var(--ink3);margin-bottom:6px;display:flex;align-items:center;gap:4px}
-.pago-sugerido{background:var(--blue-bg);border-radius:8px;padding:10px 14px;margin-top:10px}
-.pago-sugerido-label{font-size:11px;color:var(--blue);margin-bottom:4px}
+.item-amt{font-size:13px;font-weight:500;min-width:80px;text-align:right}
+.tcard{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem}
+.tcard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:6px}
+.tcard-title{font-size:14px;font-weight:500;display:flex;align-items:center;gap:6px}
+.tcard-rename{background:transparent;border:none;color:var(--ink2);font-size:12px;text-align:right;max-width:120px;padding:2px 4px;border-radius:4px}
+.tcard-rename:hover{background:var(--surface2)}
+.tcard-rename:focus{outline:1px solid var(--accent)}
+.tfields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.tfield{display:flex;flex-direction:column;gap:3px}
+.tfield label{font-size:11px;color:var(--ink3)}
+.tfield .pfx{display:flex;align-items:center;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);overflow:hidden}
+.tfield .pfx span{padding:5px 7px;font-size:11px;color:var(--ink3);border-right:0.5px solid var(--border2);background:var(--surface3);white-space:nowrap}
+.tfield .pfx input{border:none;background:transparent;flex:1;min-width:0;padding:5px 8px;color:var(--ink);font-size:13px}
+.tfield .pfx input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent)}
+.usd-sep{margin-top:6px;padding-top:10px;border-top:0.5px dashed var(--border2)}
+.usd-lbl{font-size:11px;color:var(--ink3);margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.pago-box{background:var(--info-bg);border-radius:8px;padding:10px 13px;margin-top:8px}
+.pago-box-lbl{font-size:11px;color:var(--info);margin-bottom:3px}
 .pago-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.pago-amount{font-size:18px;font-weight:500;color:var(--blue)}
+.pago-amt{font-size:18px;font-weight:500;color:var(--info)}
 .pago-usd{font-size:12px;font-weight:500;color:var(--teal);background:var(--teal-bg);padding:2px 8px;border-radius:20px}
-.pago-sugerido-desc{font-size:11px;color:var(--ink3);margin-top:4px}
-.alerta{border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px}
-.alerta.danger{background:var(--red-bg);color:var(--red)}
-.alerta.warn{background:var(--amber-bg);color:var(--amber)}
-.full-card{grid-column:1/-1}
+.pago-desc{font-size:11px;color:var(--ink3);margin-top:3px}
+.realizado-box{background:var(--success-bg);border-radius:8px;padding:10px 13px;margin-top:6px}
+.realizado-lbl{font-size:11px;color:var(--success);margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.realizado-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.resto-badge{font-size:12px;margin-top:6px;padding:4px 10px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+.extra-pago-section{margin-top:8px;padding-top:8px;border-top:0.5px dashed var(--border2)}
+.epago-title{font-size:11px;color:var(--ink3);margin-bottom:6px;display:flex;align-items:center;gap:4px}
+.detalle-section{margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)}
+.detalle-title{font-size:12px;font-weight:500;color:var(--ink2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.upload-area{border:0.5px dashed var(--border2);border-radius:8px;padding:14px;text-align:center;cursor:pointer;color:var(--ink3);font-size:13px}
+.upload-area:hover{background:var(--surface2)}
+.upload-area i{font-size:22px;display:block;margin-bottom:4px}
+.detalle-item{display:flex;justify-content:space-between;align-items:center;padding:5px 6px;border-radius:6px;font-size:12px;border-bottom:0.5px solid var(--border)}
+.detalle-item:last-child{border-bottom:none}
+.detalle-item:hover{background:var(--surface2)}
+.detalle-name{flex:1;color:var(--ink)}
+.detalle-cuota{font-size:11px;color:var(--info);background:var(--info-bg);padding:1px 6px;border-radius:10px;margin-right:6px}
+.detalle-monto{font-weight:500;color:var(--ink)}
+.detalle-count{font-size:11px;color:var(--ink3);margin-left:4px}
+.serv-input{width:110px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right}
+.serv-input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.progress-bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;border-radius:3px;transition:width .3s}
 </style>
 </head>
 <body>
 <div class="container">
 
-  <div class="header">
-    <div>
-      <h1>Mis finanzas</h1>
-      <p style="font-size:13px;color:var(--ink3)">Panel personal mensual</p>
-    </div>
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="month-label" id="monthLabel"></span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
+<div class="header">
+  <div><h1>Mis finanzas</h1><p>Panel personal mensual</p></div>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+    <span class="month-label" id="monthLabel"></span>
+    <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
   </div>
+</div>
 
-  <div class="summary-grid">
-    <div class="metric"><div class="metric-label">Ingresos totales</div><div class="metric-value pos" id="s-ingresos">$0</div></div>
-    <div class="metric"><div class="metric-label">Gastos fijos</div><div class="metric-value" id="s-fijos">$0</div></div>
-    <div class="metric"><div class="metric-label">Tarjetas (ARS)</div><div class="metric-value" id="s-tarjetas">$0</div></div>
-    <div class="metric"><div class="metric-label">Tarjetas (USD)</div><div class="metric-value" id="s-tarjetas-usd" style="color:var(--teal)">U$S 0</div></div>
-    <div class="metric"><div class="metric-label">Disponible</div><div class="metric-value" id="s-disponible">$0</div></div>
+<div class="nav-tabs">
+  <button class="ntab active" onclick="showTab('resumen',this)"><i class="ti ti-layout-dashboard"></i> Resumen</button>
+  <button class="ntab" onclick="showTab('ingresos',this)"><i class="ti ti-wallet"></i> Ingresos</button>
+  <button class="ntab" onclick="showTab('tarjetas',this)"><i class="ti ti-credit-card"></i> Tarjetas</button>
+  <button class="ntab" onclick="showTab('servicios',this)"><i class="ti ti-building"></i> Servicios</button>
+  <button class="ntab" onclick="showTab('gastos',this)"><i class="ti ti-shopping-cart"></i> Otros gastos</button>
+</div>
+
+<!-- RESUMEN -->
+<div id="view-resumen" class="view active">
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-label"><i class="ti ti-wallet"></i> Ingresos totales</div><div class="metric-val pos" id="s-ing">$0</div></div>
+    <div class="metric"><div class="metric-label"><i class="ti ti-building"></i> Gastos fijos</div><div class="metric-val" id="s-fij">$0</div></div>
+    <div class="metric"><div class="metric-label"><i class="ti ti-credit-card"></i> Tarjetas pagadas</div><div class="metric-val" id="s-tar">$0</div></div>
+    <div class="metric"><div class="metric-label"><i class="ti ti-currency-dollar"></i> Tarjetas USD</div><div class="metric-val teal" id="s-usd">U$S 0</div></div>
+    <div class="metric"><div class="metric-label"><i class="ti ti-coin"></i> Disponible</div><div class="metric-val" id="s-disp">$0</div><div class="progress-bar"><div class="progress-fill" id="s-prog" style="width:0%;background:#1a7a4a"></div></div></div>
   </div>
-
-  <div class="tab-bar">
-    <button class="tab active" onclick="showTab('ingresos',this)"><i class="ti ti-wallet"></i> Ingresos</button>
-    <button class="tab" onclick="showTab('tarjetas',this)"><i class="ti ti-credit-card"></i> Tarjetas</button>
-    <button class="tab" onclick="showTab('servicios',this)"><i class="ti ti-building"></i> Servicios</button>
-    <button class="tab" onclick="showTab('gastos',this)"><i class="ti ti-shopping-cart"></i> Otros gastos</button>
+  <div class="card" style="margin-bottom:1rem">
+    <h2 style="font-size:14px;margin-bottom:10px">Desglose mensual</h2>
+    <table class="summary-table"><tbody id="summary-breakdown"></tbody></table>
   </div>
-
-  <div id="view-ingresos" class="view active">
-    <div class="sections">
-      <div class="card">
-        <h2>Sueldo neto</h2>
-        <div class="field-row">
-          <label>Monto</label>
-          <input type="number" id="sueldo" placeholder="0" oninput="save();recalc()">
-        </div>
-      </div>
-      <div class="card">
-        <h2>Ingresos extra</h2>
-        <div id="extra-list"></div>
-        <div class="add-row">
-          <input type="text" id="extra-name" placeholder="Descripción">
-          <input type="number" id="extra-amt" placeholder="Monto" style="width:90px">
-          <button class="btn-sm primary" onclick="addExtra()"><i class="ti ti-plus"></i></button>
-        </div>
-      </div>
-    </div>
+  <div class="card">
+    <h2 style="font-size:14px;margin-bottom:8px">Alertas e insights</h2>
+    <div class="insight-row" id="insight-row"></div>
   </div>
+</div>
 
-  <div id="view-tarjetas" class="view">
-    <div id="tarjetas-container"></div>
-  </div>
-
-  <div id="view-servicios" class="view">
+<!-- INGRESOS -->
+<div id="view-ingresos" class="view">
+  <div class="sections2">
     <div class="card">
-      <h2>Servicios y gastos fijos</h2>
-      <div id="servicios-list"></div>
-      <div class="add-row" style="margin-top:10px">
-        <input type="text" id="serv-name" placeholder="Nombre del servicio">
-        <input type="number" id="serv-amt" placeholder="Monto" style="width:100px">
-        <button class="btn-sm primary" onclick="addServicio()"><i class="ti ti-plus"></i></button>
+      <h2>Sueldo neto</h2>
+      <div class="field-row"><label>Monto</label><input type="number" id="sueldo" placeholder="0" onchange="save();recalc()"></div>
+    </div>
+    <div class="card">
+      <h2>Ingresos extra</h2>
+      <div id="extra-list"></div>
+      <div class="add-row">
+        <input type="text" id="extra-name" placeholder="Descripción">
+        <input type="number" id="extra-amt" placeholder="Monto" style="width:90px">
+        <button class="btn primary" onclick="addExtra()"><i class="ti ti-plus"></i></button>
       </div>
     </div>
   </div>
+</div>
 
-  <div id="view-gastos" class="view">
-    <div class="sections">
-      <div class="card">
-        <h2>Super / Mercado</h2>
-        <div class="field-row">
-          <label>Estimado mensual</label>
-          <input type="number" id="super-amt" placeholder="0" oninput="save();recalc()">
-        </div>
-      </div>
-      <div class="card full-card">
-        <h2>Gastos extra del mes</h2>
-        <div id="gastos-extra-list"></div>
-        <div class="add-row">
-          <input type="text" id="gextra-name" placeholder="Descripción">
-          <input type="number" id="gextra-amt" placeholder="Monto" style="width:100px">
-          <button class="btn-sm primary" onclick="addGastoExtra()"><i class="ti ti-plus"></i></button>
-        </div>
+<!-- TARJETAS -->
+<div id="view-tarjetas" class="view">
+  <div id="tarjetas-container"></div>
+</div>
+
+<!-- SERVICIOS -->
+<div id="view-servicios" class="view">
+  <div class="card">
+    <h2>Servicios y gastos fijos</h2>
+    <div id="servicios-list"></div>
+    <div class="add-row" style="margin-top:10px">
+      <input type="text" id="serv-name" placeholder="Nombre del servicio">
+      <input type="number" id="serv-amt" placeholder="Monto" style="width:100px">
+      <button class="btn primary" onclick="addServicio()"><i class="ti ti-plus"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- GASTOS -->
+<div id="view-gastos" class="view">
+  <div class="sections2">
+    <div class="card">
+      <h2>Super / Mercado</h2>
+      <div class="field-row"><label>Estimado mensual</label><input type="number" id="super-amt" placeholder="0" onchange="save();recalc()"></div>
+    </div>
+    <div class="card full">
+      <h2>Gastos extra del mes</h2>
+      <div id="gastos-extra-list"></div>
+      <div class="add-row">
+        <input type="text" id="gextra-name" placeholder="Descripción">
+        <input type="number" id="gextra-amt" placeholder="Monto" style="width:100px">
+        <button class="btn primary" onclick="addGastoExtra()"><i class="ti ti-plus"></i></button>
       </div>
     </div>
   </div>
-
-  <div class="alerta" id="alerta-global" style="display:none"></div>
+</div>
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const SERVICIOS_DEFAULT=['Luz','Gas','Expensas','Alquiler','Internet','Celular','Obra social'];
-const TARJETAS_DEFAULT=['Tarjeta 1','Tarjeta 2'];
+const SERV_DEF=['Luz','Gas','Expensas','Alquiler','Internet','Celular','Obra social'];
+const TDEF=['Tarjeta 1','Tarjeta 2'];
 
-let now=new Date(), curYear=now.getFullYear(), curMonth=now.getMonth();
+let now=new Date(),curYear=now.getFullYear(),curMonth=now.getMonth();
+function mkey(){return 'fin4_'+curYear+'_'+curMonth;}
 
-function monthKey(){return 'fin_'+curYear+'_'+curMonth;}
-
-function getState(){
-  try{const r=localStorage.getItem(monthKey());if(r)return JSON.parse(r);}catch(e){}
-  return defaultState();
+function defState(){
+  return {sueldo:'',extras:[],
+    tarjetas:TDEF.map(n=>({name:n,total:'',minimo:'',usdTotal:'',usdMinimo:'',tcambio:'',pagado:'',extraPagos:[],detalle:[]})),
+    servicios:SERV_DEF.map(n=>({name:n,amt:0})),
+    superAmt:'',gastosExtra:[]};
 }
 
-function defaultState(){
-  return {
-    sueldo:'',
-    extras:[],
-    tarjetas:TARJETAS_DEFAULT.map(n=>({name:n,total:0,minimo:0,usdTotal:0,usdMinimo:0,tcambio:0})),
-    servicios:SERVICIOS_DEFAULT.map(n=>({name:n,amt:0})),
-    superAmt:'',
-    gastosExtra:[]
-  };
+function getState(){
+  try{
+    const r=localStorage.getItem(mkey());
+    if(r){const s=JSON.parse(r);s.tarjetas.forEach(t=>{if(!t.extraPagos)t.extraPagos=[];if(!t.detalle)t.detalle=[];});return s;}
+  }catch(e){}
+  return defState();
 }
 
 let state=getState();
@@ -223,65 +263,58 @@ let state=getState();
 function save(){
   state.sueldo=parseFloat(document.getElementById('sueldo').value)||0;
   state.superAmt=parseFloat(document.getElementById('super-amt').value)||0;
-  try{localStorage.setItem(monthKey(),JSON.stringify(state));}catch(e){}
+  try{localStorage.setItem(mkey(),JSON.stringify(state));}catch(e){}
 }
 
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-AR');}
-function fmtUSD(n){return n?'U$S '+parseFloat(n).toFixed(2):'U$S 0';}
+function fmtUSD(n){return 'U$S '+parseFloat(n||0).toFixed(2);}
+function nv(v){return parseFloat(v)||0;}
 
 function changeMonth(d){
-  save();
-  curMonth+=d;
+  save();curMonth+=d;
   if(curMonth>11){curMonth=0;curYear++;}
   if(curMonth<0){curMonth=11;curYear--;}
-  state=getState();
-  renderAll();
+  state=getState();renderAll();
 }
 
 function showTab(name,btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   btn.classList.add('active');
 }
 
 function totalIngresos(){
-  const s=parseFloat(document.getElementById('sueldo').value)||0;
-  return s+state.extras.reduce((a,e)=>a+e.amt,0);
+  return (parseFloat(document.getElementById('sueldo').value)||0)+state.extras.reduce((a,e)=>a+e.amt,0);
 }
 
-function calcPagoSugerido(t,ingresos,otrosGastos){
-  const reserva=ingresos*0.10;
-  const disponible=Math.max(0,ingresos-otrosGastos-reserva);
-  return Math.min(t.total,Math.max(t.minimo||0,disponible));
+function totalPagadoTarjetas(){
+  return state.tarjetas.reduce((a,t)=>{
+    return a+nv(t.pagado)+t.extraPagos.reduce((s,p)=>s+p.amt,0);
+  },0);
 }
 
 function renderAll(){
   document.getElementById('monthLabel').textContent=MESES[curMonth]+' '+curYear;
   document.getElementById('sueldo').value=state.sueldo||'';
   document.getElementById('super-amt').value=state.superAmt||'';
-  renderExtras();
-  renderTarjetas();
-  renderServicios();
-  renderGastosExtra();
-  recalc();
+  renderExtras();renderTarjetas();renderServicios();renderGastosExtra();recalc();
 }
 
 function renderExtras(){
   document.getElementById('extra-list').innerHTML=state.extras.map((e,i)=>`
     <div class="item-row">
       <span class="item-name">${e.name}</span>
-      <span class="item-amount">${fmt(e.amt)}</span>
+      <span class="item-amt">${fmt(e.amt)}</span>
       <button class="btn-icon" onclick="removeExtra(${i})"><i class="ti ti-x"></i></button>
     </div>`).join('');
 }
 function addExtra(){
-  const n=document.getElementById('extra-name').value.trim();
+  const nm=document.getElementById('extra-name').value.trim();
   const a=parseFloat(document.getElementById('extra-amt').value)||0;
-  if(!n||!a)return;
-  state.extras.push({name:n,amt:a});
-  document.getElementById('extra-name').value='';
-  document.getElementById('extra-amt').value='';
+  if(!nm||!a)return;
+  state.extras.push({name:nm,amt:a});
+  document.getElementById('extra-name').value='';document.getElementById('extra-amt').value='';
   save();renderExtras();recalc();
 }
 function removeExtra(i){state.extras.splice(i,1);save();renderExtras();recalc();}
@@ -292,85 +325,249 @@ function renderTarjetas(){
   const servicios=state.servicios.reduce((a,s)=>a+s.amt,0);
   const gastosExtra=state.gastosExtra.reduce((a,g)=>a+g.amt,0);
   const otrosGastos=servicios+superAmt+gastosExtra;
+  const reserva=ingresos*0.10;
+  const disponibleBase=Math.max(0,ingresos-otrosGastos-reserva);
 
   document.getElementById('tarjetas-container').innerHTML=state.tarjetas.map((t,i)=>{
-    const sugerido=calcPagoSugerido(t,ingresos,otrosGastos);
-    const puedeTotal=t.total>0&&t.total<=(ingresos-otrosGastos-ingresos*0.10);
-    const tieneUSD=t.usdTotal>0||t.usdMinimo>0;
-    const usdEnPesos=t.tcambio>0?t.usdTotal*t.tcambio:0;
+    const sugerido=Math.min(nv(t.total),Math.max(nv(t.minimo),disponibleBase));
+    const puedeTotal=nv(t.total)>0&&nv(t.total)<=(ingresos-otrosGastos-reserva);
+    const usdEnPesos=nv(t.tcambio)>0?nv(t.usdTotal)*nv(t.tcambio):0;
+    const totalPagado=nv(t.pagado)+t.extraPagos.reduce((s,p)=>s+p.amt,0);
+    const resto=Math.max(0,nv(t.total)-totalPagado);
     return `
-    <div class="tarjeta-card">
-      <div class="tarjeta-header">
-        <span class="tarjeta-title"><i class="ti ti-credit-card" style="margin-right:6px"></i>${t.name}</span>
-        <input class="tarjeta-rename" type="text" value="${t.name}" onchange="renameTarjeta(${i},this.value)" title="Renombrar tarjeta">
+    <div class="tcard" id="tc-${i}">
+      <div class="tcard-head">
+        <span class="tcard-title"><i class="ti ti-credit-card"></i><span id="tname-${i}">${t.name}</span></span>
+        <input class="tcard-rename" type="text" value="${t.name}" onchange="renameTarjeta(${i},this.value)" title="Renombrar">
       </div>
+
       <p style="font-size:11px;color:var(--ink3);margin-bottom:8px">Saldo en pesos</p>
-      <div class="tarjeta-fields">
-        <div class="tarjeta-field">
-          <label>Total a pagar</label>
-          <div class="prefix"><span>$</span><input type="number" value="${t.total||''}" placeholder="0" oninput="updateTarjeta(${i},'total',this.value)"></div>
-        </div>
-        <div class="tarjeta-field">
-          <label>Pago mínimo</label>
-          <div class="prefix"><span>$</span><input type="number" value="${t.minimo||''}" placeholder="0" oninput="updateTarjeta(${i},'minimo',this.value)"></div>
-        </div>
+      <div class="tfields">
+        <div class="tfield"><label>Total a pagar</label><div class="pfx"><span>$</span><input type="number" id="t${i}-total" value="${t.total}" placeholder="0" onchange="commitT(${i},'total',this.value)"></div></div>
+        <div class="tfield"><label>Pago mínimo</label><div class="pfx"><span>$</span><input type="number" id="t${i}-minimo" value="${t.minimo}" placeholder="0" onchange="commitT(${i},'minimo',this.value)"></div></div>
       </div>
-      <div class="usd-section">
-        <div class="usd-label"><i class="ti ti-currency-dollar" style="font-size:13px;color:var(--teal)"></i> Saldo en dólares</div>
-        <div class="tarjeta-fields">
-          <div class="tarjeta-field">
-            <label>Total a pagar</label>
-            <div class="prefix"><span>U$S</span><input type="number" value="${t.usdTotal||''}" placeholder="0.00" step="0.01" oninput="updateTarjeta(${i},'usdTotal',this.value)"></div>
-          </div>
-          <div class="tarjeta-field">
-            <label>Pago mínimo</label>
-            <div class="prefix"><span>U$S</span><input type="number" value="${t.usdMinimo||''}" placeholder="0.00" step="0.01" oninput="updateTarjeta(${i},'usdMinimo',this.value)"></div>
-          </div>
-        </div>
-        ${tieneUSD?`
-        <div class="tarjeta-field" style="margin-top:6px">
-          <label>Tipo de cambio (para referencia)</label>
-          <div class="prefix"><span>$</span><input type="number" value="${t.tcambio||''}" placeholder="Cotización" oninput="updateTarjeta(${i},'tcambio',this.value)"></div>
-        </div>
-        ${t.tcambio>0?`<p style="font-size:11px;color:var(--ink3);margin-top:6px">Equivalente en pesos: <strong style="color:var(--teal)">${fmt(usdEnPesos)}</strong></p>`:''}
-        `:''}
-      </div>
-      ${t.total>0?`
-      <div class="pago-sugerido">
-        <div class="pago-sugerido-label"><i class="ti ti-calculator"></i> Pago sugerido en pesos</div>
+
+      ${nv(t.total)>0?`
+      <div class="pago-box">
+        <div class="pago-box-lbl"><i class="ti ti-calculator"></i> Pago sugerido en pesos</div>
         <div class="pago-row">
-          <span class="pago-amount">${fmt(sugerido)}</span>
-          ${t.usdTotal>0?`<span class="pago-usd">+ ${fmtUSD(t.usdMinimo||t.usdTotal)} USD</span>`:''}
+          <span class="pago-amt">${fmt(sugerido)}</span>
+          ${nv(t.usdTotal)>0?`<span class="pago-usd">+ ${fmtUSD(nv(t.usdMinimo)||nv(t.usdTotal))} USD</span>`:''}
         </div>
-        <div class="pago-sugerido-desc">${puedeTotal?'Podés pagar el total completo':'Máximo posible sin quedarte sin margen (reserva 10% del sueldo)'}</div>
+        <div class="pago-desc">${puedeTotal?'Podés pagar el total completo':'Máximo posible sin quedarte sin margen (reserva 10% del sueldo)'}</div>
+      </div>`:''}
+
+      <div class="realizado-box">
+        <div class="realizado-lbl"><i class="ti ti-check"></i> Pago realizado</div>
+        <div class="realizado-row">
+          <div class="tfield" style="flex:1"><div class="pfx"><span>$</span><input type="number" id="t${i}-pagado" value="${t.pagado}" placeholder="0" onchange="commitT(${i},'pagado',this.value)"></div></div>
+          ${nv(t.total)>0?`<div style="text-align:right">
+            <div style="font-size:11px;color:var(--ink3)">Resto a pagar</div>
+            <div class="resto-badge ${resto>0?'badge warn':'badge success'}" id="resto-${i}">${resto>0?fmt(resto):'Saldada'}</div>
+          </div>`:''}
+        </div>
+        <div class="extra-pago-section">
+          <div class="epago-title"><i class="ti ti-plus-circle"></i> Pagos extra sobre la tarjeta</div>
+          <div id="epagos-${i}">${t.extraPagos.map((p,j)=>`
+            <div class="item-row">
+              <span class="item-name">${p.name}</span>
+              <span class="item-amt" style="color:var(--success)">${fmt(p.amt)}</span>
+              <button class="btn-icon" onclick="removeExtraPago(${i},${j})"><i class="ti ti-x"></i></button>
+            </div>`).join('')}</div>
+          <div class="add-row" style="margin-top:6px">
+            <input type="text" id="ep-name-${i}" placeholder="Descripción del pago extra">
+            <input type="number" id="ep-amt-${i}" placeholder="$" style="width:80px">
+            <button class="btn primary" onclick="addExtraPago(${i})"><i class="ti ti-plus"></i></button>
+          </div>
+        </div>
       </div>
-      `:''}
+
+      <div class="usd-sep">
+        <div class="usd-lbl"><i class="ti ti-currency-dollar" style="color:var(--teal)"></i> Saldo en dólares</div>
+        <div class="tfields">
+          <div class="tfield"><label>Total a pagar</label><div class="pfx"><span>U$S</span><input type="number" id="t${i}-usdTotal" value="${t.usdTotal}" placeholder="0.00" step="0.01" onchange="commitT(${i},'usdTotal',this.value)"></div></div>
+          <div class="tfield"><label>Pago mínimo</label><div class="pfx"><span>U$S</span><input type="number" id="t${i}-usdMinimo" value="${t.usdMinimo}" placeholder="0.00" step="0.01" onchange="commitT(${i},'usdMinimo',this.value)"></div></div>
+        </div>
+        <div class="tfield" style="margin-top:6px"><label>Tipo de cambio</label><div class="pfx"><span>$</span><input type="number" id="t${i}-tcambio" value="${t.tcambio}" placeholder="Cotización" onchange="commitT(${i},'tcambio',this.value)"></div></div>
+        ${nv(t.tcambio)>0&&nv(t.usdTotal)>0?`<p style="font-size:11px;color:var(--ink3);margin-top:5px">Equiv. en pesos: <strong style="color:var(--teal)">${fmt(usdEnPesos)}</strong></p>`:''}
+      </div>
+
+      <div class="detalle-section">
+        <div class="detalle-title"><i class="ti ti-list"></i> Detalle del resumen</div>
+        ${renderDetalleHTML(t,i)}
+      </div>
     </div>`;
-  }).join('')+`
-  <button class="btn-sm" onclick="addTarjeta()"><i class="ti ti-plus"></i> Agregar tarjeta</button>`;
+  }).join('')+`<button class="btn" onclick="addTarjeta()"><i class="ti ti-plus"></i> Agregar tarjeta</button>`;
 }
 
-function renameTarjeta(i,v){state.tarjetas[i].name=v;save();renderTarjetas();}
-function addTarjeta(){state.tarjetas.push({name:'Nueva tarjeta',total:0,minimo:0,usdTotal:0,usdMinimo:0,tcambio:0});save();renderTarjetas();}
-function updateTarjeta(i,k,v){state.tarjetas[i][k]=parseFloat(v)||0;save();renderTarjetas();recalc();}
+function renderDetalleHTML(t,i){
+  if(!t.detalle||t.detalle.length===0){
+    return `<div class="upload-area" onclick="document.getElementById('upl-${i}').click()">
+      <i class="ti ti-upload"></i>
+      Subir resumen (.xlsx o .csv de Galicia / Galicia Más)
+      <div style="font-size:11px;margin-top:3px">Exportar desde Home Banking → Tarjetas → Movimientos → Descargar Excel</div>
+      <input type="file" id="upl-${i}" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event,${i})">
+    </div>`;
+  }
+  const grupos={};
+  t.detalle.forEach(r=>{
+    const k=r.nombre;
+    if(!grupos[k])grupos[k]={monto:0,count:0,cuotas:r.cuotas,cuotaActual:r.cuotaActual,cuotaTotal:r.cuotaTotal};
+    grupos[k].monto+=r.monto;grupos[k].count++;
+  });
+  const items=Object.entries(grupos).sort((a,b)=>b[1].monto-a[1].monto);
+  const totalDetalle=items.reduce((s,[,v])=>s+v.monto,0);
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;color:var(--ink3)">${t.detalle.length} movimientos — ${items.length} comercios</span>
+      <button class="btn danger-btn" style="font-size:11px;padding:3px 8px" onclick="clearDetalle(${i})"><i class="ti ti-trash"></i> Limpiar</button>
+    </div>
+    <div>
+      ${items.map(([nombre,v])=>`
+        <div class="detalle-item">
+          <span class="detalle-name">${nombre}${v.count>1?`<span class="detalle-count">(×${v.count})</span>`:''}</span>
+          ${v.cuotas?`<span class="detalle-cuota">${v.cuotaActual}/${v.cuotaTotal}</span>`:''}
+          <span class="detalle-monto">${fmt(v.monto)}</span>
+        </div>`).join('')}
+      <div class="detalle-item" style="font-weight:500;border-top:0.5px solid var(--border2);margin-top:4px">
+        <span class="detalle-name">Total resumen</span>
+        <span class="detalle-monto">${fmt(totalDetalle)}</span>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <div class="upload-area" style="padding:8px;font-size:12px" onclick="document.getElementById('upl-${i}').click()">
+        <i class="ti ti-refresh"></i> Reemplazar archivo
+        <input type="file" id="upl-${i}" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event,${i})">
+      </div>
+    </div>`;
+}
+
+function handleFile(event,i){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      parseGaliciaRows(rows,i);
+    }catch(err){
+      alert('No se pudo leer el archivo. Intentá exportar como .xlsx desde Galicia Home Banking.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseGaliciaRows(rows,i){
+  const movimientos=[];
+  let headerRow=-1;
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r].map(c=>String(c||'').toLowerCase());
+    if(row.some(c=>c.includes('descrip')||c.includes('concepto')||c.includes('comercio'))){headerRow=r;break;}
+  }
+  const start=headerRow>=0?headerRow+1:1;
+  const header=headerRow>=0?rows[headerRow].map(c=>String(c||'').toLowerCase()):[];
+  const iDesc=Math.max(header.findIndex(c=>c.includes('descrip')||c.includes('concepto')||c.includes('comercio')),1);
+  const iMonto=header.findIndex(c=>c.includes('monto')||c.includes('importe')||c.includes('total'));
+  const iCuota=header.findIndex(c=>c.includes('cuota'));
+
+  for(let r=start;r<rows.length;r++){
+    const row=rows[r];
+    if(!row||row.every(c=>!c))continue;
+    const descRaw=String(row[iDesc]||row[1]||'').trim();
+    if(!descRaw)continue;
+    const montoRaw=iMonto>=0?row[iMonto]:row[row.length-1];
+    const monto=Math.abs(parseFloat(String(montoRaw).replace(/[^0-9.,-]/g,'').replace(',','.'))||0);
+    if(!monto)continue;
+    let nombre=descRaw.replace(/\s+/g,' ').trim();
+    let cuotas=false,cuotaActual=0,cuotaTotal=0;
+    const cuotaRaw=iCuota>=0?String(row[iCuota]||''):'';
+    const cuotaMatch=(cuotaRaw+' '+nombre).match(/(\d+)\s*\/\s*(\d+)/);
+    if(cuotaMatch){
+      cuotas=true;cuotaActual=parseInt(cuotaMatch[1]);cuotaTotal=parseInt(cuotaMatch[2]);
+      nombre=nombre.replace(/\d+\s*\/\s*\d+/,'').replace(/cuota/i,'').trim();
+    }
+    nombre=nombre.replace(/\s+/g,' ').trim().toUpperCase();
+    movimientos.push({nombre,monto,cuotas,cuotaActual,cuotaTotal});
+  }
+  if(!movimientos.length){alert('No se encontraron movimientos en el archivo. Verificá el formato.');return;}
+  state.tarjetas[i].detalle=movimientos;
+  if(!nv(state.tarjetas[i].total)){
+    state.tarjetas[i].total=Math.round(movimientos.reduce((s,m)=>s+m.monto,0));
+  }
+  save();renderTarjetas();recalc();
+}
+
+function clearDetalle(i){state.tarjetas[i].detalle=[];save();renderTarjetas();}
+
+function renameTarjeta(i,v){
+  state.tarjetas[i].name=v;save();
+  const el=document.getElementById('tname-'+i);if(el)el.textContent=v;
+}
+
+function commitT(i,k,v){
+  state.tarjetas[i][k]=v;save();
+  updateTResumen(i);recalc();
+}
+
+function updateTResumen(i){
+  const t=state.tarjetas[i];
+  const ingresos=totalIngresos();
+  const superAmt=parseFloat(document.getElementById('super-amt')?.value)||0;
+  const servicios=state.servicios.reduce((a,s)=>a+s.amt,0);
+  const gastosExtra=state.gastosExtra.reduce((a,g)=>a+g.amt,0);
+  const otrosGastos=servicios+superAmt+gastosExtra;
+  const reserva=ingresos*0.10;
+  const disponibleBase=Math.max(0,ingresos-otrosGastos-reserva);
+  const sugerido=Math.min(nv(t.total),Math.max(nv(t.minimo),disponibleBase));
+  const puedeTotal=nv(t.total)>0&&nv(t.total)<=(ingresos-otrosGastos-reserva);
+  const usdEnPesos=nv(t.tcambio)>0?nv(t.usdTotal)*nv(t.tcambio):0;
+  const totalPagado=nv(t.pagado)+t.extraPagos.reduce((s,p)=>s+p.amt,0);
+  const resto=Math.max(0,nv(t.total)-totalPagado);
+  const card=document.getElementById('tc-'+i);if(!card)return;
+  const pagoBox=card.querySelector('.pago-box');
+  if(pagoBox&&nv(t.total)>0){
+    pagoBox.querySelector('.pago-amt').textContent=fmt(sugerido);
+    pagoBox.querySelector('.pago-desc').textContent=puedeTotal?'Podés pagar el total completo':'Máximo posible sin quedarte sin margen (reserva 10% del sueldo)';
+  }
+  const restoEl=document.getElementById('resto-'+i);
+  if(restoEl){
+    restoEl.textContent=resto>0?fmt(resto):'Saldada';
+    restoEl.className='resto-badge '+(resto>0?'badge warn':'badge success');
+  }
+}
+
+function addExtraPago(i){
+  const nm=document.getElementById('ep-name-'+i).value.trim();
+  const a=parseFloat(document.getElementById('ep-amt-'+i).value)||0;
+  if(!nm||!a)return;
+  state.tarjetas[i].extraPagos.push({name:nm,amt:a});
+  document.getElementById('ep-name-'+i).value='';document.getElementById('ep-amt-'+i).value='';
+  save();renderTarjetas();recalc();
+}
+function removeExtraPago(i,j){state.tarjetas[i].extraPagos.splice(j,1);save();renderTarjetas();recalc();}
+function addTarjeta(){
+  state.tarjetas.push({name:'Nueva tarjeta',total:'',minimo:'',usdTotal:'',usdMinimo:'',tcambio:'',pagado:'',extraPagos:[],detalle:[]});
+  save();renderTarjetas();
+}
 
 function renderServicios(){
   document.getElementById('servicios-list').innerHTML=state.servicios.map((s,i)=>`
     <div class="item-row">
       <span class="item-name">${s.name}</span>
-      <input type="number" value="${s.amt||''}" placeholder="0" oninput="updateServicio(${i},this.value)" style="width:110px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right">
-      <button class="btn-icon" onclick="removeServicio(${i})"><i class="ti ti-x"></i></button>
+      <input class="serv-input" type="number" value="${s.amt||''}" placeholder="0" onchange="updateServ(${i},this.value)">
+      <button class="btn-icon" onclick="removeServ(${i})"><i class="ti ti-x"></i></button>
     </div>`).join('');
 }
-function updateServicio(i,v){state.servicios[i].amt=parseFloat(v)||0;save();recalc();}
-function removeServicio(i){state.servicios.splice(i,1);save();renderServicios();recalc();}
+function updateServ(i,v){state.servicios[i].amt=parseFloat(v)||0;save();recalc();}
+function removeServ(i){state.servicios.splice(i,1);save();renderServicios();recalc();}
 function addServicio(){
-  const n=document.getElementById('serv-name').value.trim();
+  const nm=document.getElementById('serv-name').value.trim();
   const a=parseFloat(document.getElementById('serv-amt').value)||0;
-  if(!n)return;
-  state.servicios.push({name:n,amt:a});
-  document.getElementById('serv-name').value='';
-  document.getElementById('serv-amt').value='';
+  if(!nm)return;
+  state.servicios.push({name:nm,amt:a});
+  document.getElementById('serv-name').value='';document.getElementById('serv-amt').value='';
   save();renderServicios();recalc();
 }
 
@@ -378,17 +575,16 @@ function renderGastosExtra(){
   document.getElementById('gastos-extra-list').innerHTML=state.gastosExtra.map((g,i)=>`
     <div class="item-row">
       <span class="item-name">${g.name}</span>
-      <span class="item-amount">${fmt(g.amt)}</span>
+      <span class="item-amt">${fmt(g.amt)}</span>
       <button class="btn-icon" onclick="removeGastoExtra(${i})"><i class="ti ti-x"></i></button>
     </div>`).join('');
 }
 function addGastoExtra(){
-  const n=document.getElementById('gextra-name').value.trim();
+  const nm=document.getElementById('gextra-name').value.trim();
   const a=parseFloat(document.getElementById('gextra-amt').value)||0;
-  if(!n||!a)return;
-  state.gastosExtra.push({name:n,amt:a});
-  document.getElementById('gextra-name').value='';
-  document.getElementById('gextra-amt').value='';
+  if(!nm||!a)return;
+  state.gastosExtra.push({name:nm,amt:a});
+  document.getElementById('gextra-name').value='';document.getElementById('gextra-amt').value='';
   save();renderGastosExtra();recalc();
 }
 function removeGastoExtra(i){state.gastosExtra.splice(i,1);save();renderGastosExtra();recalc();}
@@ -399,30 +595,71 @@ function recalc(){
   const superAmt=parseFloat(document.getElementById('super-amt')?.value)||0;
   const gastosExtra=state.gastosExtra.reduce((a,g)=>a+g.amt,0);
   const otrosGastos=servicios+superAmt+gastosExtra;
-
-  let tarjetasARS=0, tarjetasUSD=0;
-  state.tarjetas.forEach(t=>{
-    const reserva=ingresos*0.10;
-    const disponible=Math.max(0,ingresos-otrosGastos-reserva);
-    tarjetasARS+=Math.min(t.total,Math.max(t.minimo||0,disponible));
-    tarjetasUSD+=t.usdTotal||0;
-  });
-
-  const totalGastos=otrosGastos+tarjetasARS;
+  const tarjetasPagadas=totalPagadoTarjetas();
+  const tarjetasUSD=state.tarjetas.reduce((a,t)=>a+nv(t.usdTotal),0);
+  const totalGastos=otrosGastos+tarjetasPagadas;
   const disponible=ingresos-totalGastos;
+  const pct=ingresos>0?Math.round((disponible/ingresos)*100):0;
 
-  document.getElementById('s-ingresos').textContent=fmt(ingresos);
-  document.getElementById('s-fijos').textContent=fmt(otrosGastos);
-  document.getElementById('s-tarjetas').textContent=fmt(tarjetasARS);
-  document.getElementById('s-tarjetas-usd').textContent=fmtUSD(tarjetasUSD);
-  document.getElementById('s-disponible').textContent=fmt(disponible);
-  document.getElementById('s-disponible').className='metric-value '+(disponible>0?'pos':disponible<0?'neg':'');
+  document.getElementById('s-ing').textContent=fmt(ingresos);
+  document.getElementById('s-fij').textContent=fmt(otrosGastos);
+  document.getElementById('s-tar').textContent=fmt(tarjetasPagadas);
+  document.getElementById('s-usd').textContent=fmtUSD(tarjetasUSD);
+  document.getElementById('s-disp').textContent=fmt(disponible);
+  document.getElementById('s-disp').className='metric-val '+(disponible>=0?'pos':'neg');
 
-  const al=document.getElementById('alerta-global');
-  if(!ingresos){al.style.display='none';return;}
-  if(disponible<0){al.className='alerta danger';al.textContent='Los gastos en pesos superan los ingresos. Revisá los montos.';al.style.display='block';}
-  else if(disponible<ingresos*0.05){al.className='alerta warn';al.textContent='Margen muy ajustado. Quedás con menos del 5% de los ingresos.';al.style.display='block';}
-  else{al.style.display='none';}
+  const pct2=Math.max(0,Math.min(100,ingresos>0?(disponible/ingresos)*100:0));
+  const prog=document.getElementById('s-prog');
+  prog.style.width=pct2+'%';
+  prog.style.background=pct2>20?'#1a7a4a':pct2>10?'#8a5f10':'#b03030';
+
+  const breakdown=document.getElementById('summary-breakdown');
+  const rows=[];
+  if(state.sueldo)rows.push(['<i class="ti ti-wallet"></i> Sueldo neto',fmt(nv(state.sueldo)),'pos']);
+  if(state.extras.length){
+    rows.push(['<i class="ti ti-plus"></i> Ingresos extra',fmt(state.extras.reduce((a,e)=>a+e.amt,0)),'pos']);
+  }
+  if(servicios)rows.push(['<i class="ti ti-building"></i> Servicios fijos','−'+fmt(servicios),'']);
+  if(superAmt)rows.push(['<i class="ti ti-shopping-cart"></i> Super / Mercado','−'+fmt(superAmt),'']);
+  if(gastosExtra)rows.push(['<i class="ti ti-tag"></i> Gastos extra','−'+fmt(gastosExtra),'']);
+  state.tarjetas.forEach(t=>{
+    const pagado=nv(t.pagado)+t.extraPagos.reduce((s,p)=>s+p.amt,0);
+    const resto=Math.max(0,nv(t.total)-pagado);
+    if(pagado)rows.push([`<i class="ti ti-credit-card"></i> ${t.name} (pagado)`,'−'+fmt(pagado),'']);
+    if(resto)rows.push([`<i class="ti ti-clock"></i> ${t.name} (resto pendiente)`,fmt(resto),'warn']);
+  });
+  breakdown.innerHTML=rows.map(([l,v,cls])=>`<tr>
+    <td class="lbl">${l}</td>
+    <td class="amt" style="${cls==='pos'?'color:var(--success)':cls==='warn'?'color:var(--warn)':''}">${v}</td>
+  </tr>`).join('')+`<tr class="total-row">
+    <td class="lbl"><i class="ti ti-coin"></i> Disponible</td>
+    <td class="amt" style="color:${disponible>=0?'var(--success)':'var(--danger)'}">${fmt(disponible)}</td>
+  </tr>`;
+
+  const insights=[];
+  if(ingresos>0){
+    if(pct>=20)insights.push(`<span class="badge success"><i class="ti ti-thumb-up"></i> Buen margen: ${pct}% disponible</span>`);
+    else if(pct>=10)insights.push(`<span class="badge warn"><i class="ti ti-alert-triangle"></i> Margen ajustado: ${pct}% disponible</span>`);
+    else if(pct>=0)insights.push(`<span class="badge danger"><i class="ti ti-alert-circle"></i> Margen crítico: ${pct}% disponible</span>`);
+    else insights.push(`<span class="badge danger"><i class="ti ti-x"></i> Gastos superan ingresos (${pct}%)</span>`);
+
+    const categorias=[
+      {label:'Servicios',val:servicios},
+      {label:'Super/Mercado',val:superAmt},
+      {label:'Gastos extra',val:gastosExtra},
+      {label:'Tarjetas',val:tarjetasPagadas}
+    ];
+    const mayor=categorias.sort((a,b)=>b.val-a.val)[0];
+    if(mayor.val>0)insights.push(`<span class="badge info"><i class="ti ti-chart-bar"></i> Mayor gasto: ${mayor.label} (${fmt(mayor.val)})</span>`);
+
+    state.tarjetas.forEach(t=>{
+      const resto=Math.max(0,nv(t.total)-(nv(t.pagado)+t.extraPagos.reduce((s,p)=>s+p.amt,0)));
+      if(resto>0)insights.push(`<span class="badge warn"><i class="ti ti-clock"></i> ${t.name}: resta pagar ${fmt(resto)}</span>`);
+    });
+  } else {
+    insights.push(`<span class="badge info"><i class="ti ti-info-circle"></i> Cargá tus ingresos para ver el análisis</span>`);
+  }
+  document.getElementById('insight-row').innerHTML=insights.join('');
 }
 
 renderAll();
