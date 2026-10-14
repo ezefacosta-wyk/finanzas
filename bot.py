@@ -317,6 +317,8 @@ async def oauth_callback(request: web.Request) -> web.Response:
         redirect_uri=REDIRECT_URI,
         state=state,
     )
+    import os as _os
+    _os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
     flow.fetch_token(code=code)
     creds = flow.credentials
 
