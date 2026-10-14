@@ -31,7 +31,7 @@ PORT          = int(os.environ.get("PORT", 8080))
 TZ = ZoneInfo("America/Buenos_Aires")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive",
     "openid",
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
@@ -332,6 +332,7 @@ async def oauth_callback(request: web.Request) -> web.Response:
         "token": creds.token,
         "refresh_token": creds.refresh_token,
         "name": name,
+        "scope_version": 2,  # drive completo (v2)
     }
     save_users(users_db)
 
@@ -353,11 +354,20 @@ async def oauth_callback(request: web.Request) -> web.Response:
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_chat.id)
     if uid in users_db:
+        # Verificar si el token tiene el scope correcto (drive completo)
+        creds_data = users_db[uid]
+        tiene_drive_completo = creds_data.get("scope_version", 1) >= 2
+        if tiene_drive_completo:
+            await update.message.reply_text(
+                f"👋 ¡Ya estás conectado, {users_db[uid]['name']}!\n"
+                "Usá /ayuda para ver los comandos disponibles."
+            )
+            return
+        # Tiene token viejo con scope limitado → reconectar
         await update.message.reply_text(
-            f"👋 ¡Ya estás conectado, {users_db[uid]['name']}!\n"
-            "Usá /ayuda para ver los comandos disponibles."
+            "🔄 Necesito reconectar tu cuenta para poder acceder a tus datos existentes de Drive.\n\n"
+            "Es un paso único, solo tenés que autorizar de nuevo:"
         )
-        return
     url = make_oauth_url(update.effective_chat.id)
     await update.message.reply_text(
         "¡Hola! Para empezar, conectá tu cuenta de Google Drive "
