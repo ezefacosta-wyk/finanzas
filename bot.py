@@ -63,7 +63,8 @@ log = logging.getLogger(__name__)
 # Almacenamiento simple en memoria + JSON local
 # (en Railway se puede usar un volumen o Redis)
 # ──────────────────────────────────────────────
-USERS_FILE = "users.json"
+USERS_FILE  = "users.json"
+STATES_FILE = "oauth_states.json"
 
 def load_users() -> dict:
     if os.path.exists(USERS_FILE):
@@ -74,6 +75,16 @@ def load_users() -> dict:
 def save_users(users: dict):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
+
+def load_states() -> dict:
+    if os.path.exists(STATES_FILE):
+        with open(STATES_FILE) as f:
+            return json.load(f)
+    return {}
+
+def save_states(states: dict):
+    with open(STATES_FILE, "w") as f:
+        json.dump(states, f, indent=2)
 
 users_db: dict = load_users()   # { telegram_id: {creds, name, ...} }
 
@@ -249,8 +260,6 @@ def build_resumen(data: dict, key: str) -> str:
 # ──────────────────────────────────────────────
 # OAuth Flow
 # ──────────────────────────────────────────────
-pending_oauth: dict = {}   # state → telegram_chat_id
-
 def make_oauth_url(chat_id: int) -> str:
     flow = Flow.from_client_config(
         {
@@ -270,17 +279,29 @@ def make_oauth_url(chat_id: int) -> str:
         include_granted_scopes="true",
         prompt="consent",
     )
-    pending_oauth[state] = chat_id
+    # Persistir el state en disco para sobrevivir reinicios
+    states = load_states()
+    states[state] = chat_id
+    save_states(states)
     return url
 
 async def oauth_callback(request: web.Request) -> web.Response:
     """Endpoint HTTP que recibe el callback de Google OAuth."""
     state = request.rel_url.query.get("state", "")
     code  = request.rel_url.query.get("code", "")
-    chat_id = pending_oauth.pop(state, None)
+
+    # Leer state desde disco (sobrevive reinicios del proceso)
+    states = load_states()
+    chat_id = states.pop(state, None)
+    if chat_id:
+        save_states(states)
 
     if not chat_id or not code:
-        return web.Response(text="Error: estado inválido.", status=400)
+        return web.Response(
+            text="<html><body><h2>❌ Error: sesión expirada o inválida. Volvé a Telegram y usá /start de nuevo.</h2></body></html>",
+            content_type="text/html",
+            status=400,
+        )
 
     flow = Flow.from_client_config(
         {
