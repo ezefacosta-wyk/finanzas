@@ -740,10 +740,13 @@ async def post_init(app: Application):
 # Main
 # ──────────────────────────────────────────────
 def main():
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL", REDIRECT_URI.replace("/oauth/callback", ""))
+
     application = (
         Application.builder()
         .token(BOT_TOKEN)
         .post_init(post_init)
+        .updater(None)   # Sin updater propio — usamos webhook vía aiohttp
         .build()
     )
 
@@ -761,32 +764,46 @@ def main():
     # Job queue — notificaciones automáticas (hora Argentina = UTC-3)
     jq = application.job_queue
     # Día 28 a las 20:00 ART = 23:00 UTC
-    jq.run_daily(notif_cierre,   time=__import__("datetime").time(23, 0), days=(0,1,2,3,4,5,6))
-    # Solo ejecutar el día 28:
-    # (la función verifica el día internamente — ver nota abajo)
+    jq.run_daily(notif_cierre,    time=__import__("datetime").time(23, 0), days=(0,1,2,3,4,5,6))
     # Día 1 a las 09:00 ART = 12:00 UTC
     jq.run_daily(notif_nuevo_mes, time=__import__("datetime").time(12, 0), days=(0,1,2,3,4,5,6))
 
-    # Servidor web para OAuth callback
+    async def telegram_webhook(request: web.Request) -> web.Response:
+        """Recibe updates de Telegram vía webhook."""
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return web.Response(text="ok")
+
+    # Servidor web unificado: webhook de Telegram + OAuth callback
     web_app = web.Application()
     web_app["bot_app"] = application
+    web_app.router.add_post(f"/webhook/{BOT_TOKEN}", telegram_webhook)
     web_app.router.add_get("/oauth/callback", oauth_callback)
     web_app.router.add_get("/health", lambda r: web.Response(text="ok"))
 
     async def run():
         await application.initialize()
         await application.start()
+
+        # Registrar webhook en Telegram
+        webhook_endpoint = f"{WEBHOOK_URL}/webhook/{BOT_TOKEN}"
+        await application.bot.set_webhook(
+            url=webhook_endpoint,
+            drop_pending_updates=True,
+        )
+        log.info(f"Webhook registrado: {webhook_endpoint}")
+
         runner = web.AppRunner(web_app)
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", PORT)
         await site.start()
         log.info(f"Bot corriendo en el puerto {PORT}")
-        # Mantener corriendo
-        await application.updater.start_polling(drop_pending_updates=True)
+
         try:
             await asyncio.Event().wait()
         finally:
-            await application.updater.stop()
+            await application.bot.delete_webhook()
             await application.stop()
             await application.shutdown()
 
