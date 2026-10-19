@@ -242,8 +242,7 @@ h2{font-size:16px;font-weight:500;margin-bottom:12px;color:var(--ink)}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CLIENT_ID='40977181531-47pauk08197779rjmrccasm8omdpl5kk.apps.googleusercontent.com';
-const SCOPES='https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.profile';
-const DRIVE_FOLDER='MisFinanzas';
+const SCOPES='https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile';
 const DRIVE_FILE='finanzas_data.json';
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
@@ -283,96 +282,9 @@ function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);acc
 async function fetchUserInfo(){try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)return;const u=await r.json();const name=u.name||u.email||'Usuario';document.getElementById('driveName').textContent=name;const av=document.getElementById('driveAvatar');av.textContent=getInitials(name);av.style.background=avatarColor(name);}catch(e){}}
 function showApp(){document.getElementById('loginScreen').style.display='none';document.getElementById('driveBar').style.display='flex';document.getElementById('appContent').style.display='block';renderAll();}
 async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{...opts.headers,Authorization:'Bearer '+accessToken}});if(r.status===401){setSyncInfo('Sesión expirada','err');return null;}return r;}
-/* ── Obtener o crear carpeta MisFinanzas en Drive normal ── */
-async function ensureFolder(){
-  const q=encodeURIComponent("name='"+DRIVE_FOLDER+"' and mimeType='application/vnd.google-apps.folder' and trashed=false");
-  const r=await driveReq('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)');
-  if(!r)return null;
-  const d=await r.json();
-  if(d.files&&d.files.length)return d.files[0].id;
-  // Crear carpeta nueva
-  const cr=await driveReq('https://www.googleapis.com/drive/v3/files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:DRIVE_FOLDER,mimeType:'application/vnd.google-apps.folder'})});
-  if(!cr)return null;
-  const cd=await cr.json();
-  return cd.id||null;
-}
-/* ── Buscar finanzas_data.json en Drive normal (por nombre, sin restricción de carpeta) ── */
-async function findDriveFile(){
-  if(driveFileId)return driveFileId;
-  // Buscar por nombre en todo el Drive
-  const q=encodeURIComponent("name='"+DRIVE_FILE+"' and mimeType='application/json' and trashed=false");
-  const r=await driveReq('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)&orderBy=modifiedTime+desc');
-  if(!r)return null;
-  const d=await r.json();
-  if(d.files&&d.files.length){driveFileId=d.files[0].id;return driveFileId;}
-  return null;
-}
-/* ── Migrar datos del appDataFolder al Drive normal (una sola vez) ── */
-async function migrateFromAppData(){
-  try{
-    const q=encodeURIComponent("name='"+DRIVE_FILE+"'");
-    const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q='+q+'&fields=files(id)');
-    if(!r)return;
-    const d=await r.json();
-    if(!d.files||!d.files.length)return;
-    const oldFid=d.files[0].id;
-    const dr=await driveReq('https://www.googleapis.com/drive/v3/files/'+oldFid+'?alt=media');
-    if(!dr)return;
-    const oldData=await dr.json();
-    // Guardar en Drive normal
-    const folderId=await ensureFolder();
-    if(!folderId)return;
-    const blob=new Blob([JSON.stringify(oldData)],{type:'application/json'});
-    const meta={name:DRIVE_FILE,parents:[folderId]};
-    const form=new FormData();
-    form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
-    form.append('file',blob);
-    const cr=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});
-    if(cr){const cd=await cr.json();driveFileId=cd.id;console.log('Migración completada, nuevo id='+driveFileId);}
-  }catch(e){console.warn('migrateFromAppData error:',e);}
-}
-async function loadFromDrive(){
-  setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');
-  try{
-    let fid=await findDriveFile();
-    if(!fid){
-      // Intentar migrar datos existentes de appDataFolder
-      await migrateFromAppData();
-      fid=driveFileId;
-    }
-    if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}
-    const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fid+'?alt=media');
-    if(!r)return;
-    const d=await r.json();
-    Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));
-    state=getState();
-    setSyncInfo('Sincronizado ✓','ok');
-  }catch(e){setSyncInfo('Error al cargar','err');}
-}
-async function pushToDrive(){
-  if(!accessToken)return;
-  setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');
-  try{
-    const d={};
-    for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}
-    const blob=new Blob([JSON.stringify(d)],{type:'application/json'});
-    let fid=await findDriveFile();
-    if(fid){
-      await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+fid+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});
-    }else{
-      const folderId=await ensureFolder();
-      if(!folderId){setSyncInfo('Error al crear carpeta','err');return;}
-      const meta={name:DRIVE_FILE,parents:[folderId]};
-      const form=new FormData();
-      form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
-      form.append('file',blob);
-      const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});
-      if(r){const rd=await r.json();driveFileId=rd.id;}
-    }
-    const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    setSyncInfo('Guardado '+ts+' ✓','ok');
-  }catch(e){setSyncInfo('Error al guardar','err');}
-}
+async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27'+DRIVE_FILE+'%27&fields=files(id)');if(!r)return null;const d=await r.json();if(d.files&&d.files.length){driveFileId=d.files[0].id;localStorage.setItem('fin_gdrive_fileid',driveFileId);}return driveFileId||null;}
+async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fid+'?alt=media');if(!r)return;const d=await r.json();Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));state=getState();setSyncInfo('Sincronizado ✓','ok');}catch(e){setSyncInfo('Error al cargar','err');}}
+async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const blob=new Blob([JSON.stringify(d)],{type:'application/json'});const fid=await findDriveFile();if(fid){await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+fid+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});}else{const meta={name:DRIVE_FILE,parents:['appDataFolder']};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(r){const rd=await r.json();driveFileId=rd.id;localStorage.setItem('fin_gdrive_fileid',driveFileId);}}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
 function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');}
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(pushToDrive,3000);}
 async function init(){document.getElementById('loginScreen').style.display='block';const saved=localStorage.getItem('fin_gtoken');if(saved){accessToken=saved;try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(r.ok){await fetchUserInfo();await loadFromDrive();showApp();return;}}catch(e){}localStorage.removeItem('fin_gtoken');accessToken=null;}}

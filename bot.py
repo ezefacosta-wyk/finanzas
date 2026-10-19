@@ -31,7 +31,7 @@ PORT          = int(os.environ.get("PORT", 8080))
 TZ = ZoneInfo("America/Buenos_Aires")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive.appdata",
     "openid",
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
@@ -125,33 +125,13 @@ def creds_from_dict(d: dict) -> Credentials:
 def get_drive(creds: Credentials):
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
-def ensure_folder(drive, name=DRIVE_FOLDER) -> str:
-    """Busca la carpeta en todo el Drive (incluyendo compartidos). Crea una nueva si no existe."""
-    q = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    res = drive.files().list(
-        q=q,
-        fields="files(id)",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True,
-    ).execute()
-    if res["files"]:
-        return res["files"][0]["id"]
-    meta = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
-    folder = drive.files().create(
-        body=meta,
-        fields="id",
-        supportsAllDrives=True,
-    ).execute()
-    return folder["id"]
-
 def find_data_file(drive) -> str | None:
-    """Busca finanzas_data.json en todo el Drive sin restringir por carpeta."""
-    q = f"name='{DATA_FILE}' and mimeType='application/json' and trashed=false"
+    """Busca finanzas_data.json en el appDataFolder (espacio oculto de la app)."""
+    q = f"name='{DATA_FILE}'"
     res = drive.files().list(
         q=q,
+        spaces="appDataFolder",
         fields="files(id)",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True,
         orderBy="modifiedTime desc",
     ).execute()
     if res["files"]:
@@ -160,10 +140,9 @@ def find_data_file(drive) -> str | None:
 
 def read_drive_data(creds: Credentials) -> dict:
     drive = get_drive(creds)
-    # Primero intentar encontrar el archivo existente en cualquier carpeta
     fid = find_data_file(drive)
     if not fid:
-        log.info("No se encontró finanzas_data.json en Drive")
+        log.info("No se encontró finanzas_data.json en appDataFolder")
         return {}
     log.info(f"Leyendo finanzas_data.json con id={fid}")
     buf = io.BytesIO()
@@ -180,26 +159,14 @@ def write_drive_data(creds: Credentials, data: dict):
     content = json.dumps(data, ensure_ascii=False).encode()
     buf = io.BytesIO(content)
     media = MediaIoBaseUpload(buf, mimetype="application/json")
-    # Intentar actualizar el archivo existente primero
     fid = find_data_file(drive)
     if fid:
-        drive.files().update(
-            fileId=fid,
-            media_body=media,
-            supportsAllDrives=True,
-        ).execute()
-        log.info(f"finanzas_data.json actualizado (id={fid})")
+        drive.files().update(fileId=fid, media_body=media).execute()
+        log.info(f"finanzas_data.json actualizado en appDataFolder (id={fid})")
     else:
-        # Crear archivo nuevo dentro de la carpeta MisFinanzas
-        folder_id = ensure_folder(drive)
-        meta = {"name": DATA_FILE, "parents": [folder_id]}
-        drive.files().create(
-            body=meta,
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True,
-        ).execute()
-        log.info("finanzas_data.json creado en carpeta MisFinanzas")
+        meta = {"name": DATA_FILE, "parents": ["appDataFolder"]}
+        drive.files().create(body=meta, media_body=media, fields="id").execute()
+        log.info("finanzas_data.json creado en appDataFolder")
 
 # ──────────────────────────────────────────────
 # Parsear montos (acepta 1500 / 1.500 / 1,500 / 1.500,00 / 1,500.00)
@@ -368,7 +335,7 @@ async def oauth_callback(request: web.Request) -> web.Response:
         "token": creds.token,
         "refresh_token": creds.refresh_token,
         "name": name,
-        "scope_version": 2,  # drive completo (v2)
+        "scope_version": 3,  # drive.appdata (v3)
     }
     save_users(users_db)
 
@@ -390,18 +357,18 @@ async def oauth_callback(request: web.Request) -> web.Response:
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_chat.id)
     if uid in users_db:
-        # Verificar si el token tiene el scope correcto (drive completo)
+        # Verificar si el token tiene el scope correcto (drive.appdata v3)
         creds_data = users_db[uid]
-        tiene_drive_completo = creds_data.get("scope_version", 1) >= 2
-        if tiene_drive_completo:
+        tiene_scope_correcto = creds_data.get("scope_version", 1) >= 3
+        if tiene_scope_correcto:
             await update.message.reply_text(
                 f"👋 ¡Ya estás conectado, {users_db[uid]['name']}!\n"
                 "Usá /ayuda para ver los comandos disponibles."
             )
             return
-        # Tiene token viejo con scope limitado → reconectar
+        # Tiene token viejo → reconectar
         await update.message.reply_text(
-            "🔄 Necesito reconectar tu cuenta para poder acceder a tus datos existentes de Drive.\n\n"
+            "🔄 Necesito reconectar tu cuenta para sincronizar correctamente con la app web.\n\n"
             "Es un paso único, solo tenés que autorizar de nuevo:"
         )
     url = make_oauth_url(update.effective_chat.id)
