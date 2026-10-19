@@ -126,22 +126,46 @@ def get_drive(creds: Credentials):
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 def ensure_folder(drive, name=DRIVE_FOLDER) -> str:
+    """Busca la carpeta en todo el Drive (incluyendo compartidos). Crea una nueva si no existe."""
     q = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    res = drive.files().list(q=q, fields="files(id)").execute()
+    res = drive.files().list(
+        q=q,
+        fields="files(id)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+    ).execute()
     if res["files"]:
         return res["files"][0]["id"]
     meta = {"name": name, "mimeType": "application/vnd.google-apps.folder"}
-    folder = drive.files().create(body=meta, fields="id").execute()
+    folder = drive.files().create(
+        body=meta,
+        fields="id",
+        supportsAllDrives=True,
+    ).execute()
     return folder["id"]
+
+def find_data_file(drive) -> str | None:
+    """Busca finanzas_data.json en todo el Drive sin restringir por carpeta."""
+    q = f"name='{DATA_FILE}' and mimeType='application/json' and trashed=false"
+    res = drive.files().list(
+        q=q,
+        fields="files(id)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        orderBy="modifiedTime desc",
+    ).execute()
+    if res["files"]:
+        return res["files"][0]["id"]
+    return None
 
 def read_drive_data(creds: Credentials) -> dict:
     drive = get_drive(creds)
-    folder_id = ensure_folder(drive)
-    q = f"name='{DATA_FILE}' and '{folder_id}' in parents and trashed=false"
-    res = drive.files().list(q=q, fields="files(id)").execute()
-    if not res["files"]:
+    # Primero intentar encontrar el archivo existente en cualquier carpeta
+    fid = find_data_file(drive)
+    if not fid:
+        log.info("No se encontró finanzas_data.json en Drive")
         return {}
-    fid = res["files"][0]["id"]
+    log.info(f"Leyendo finanzas_data.json con id={fid}")
     buf = io.BytesIO()
     request = drive.files().get_media(fileId=fid)
     dl = MediaIoBaseDownload(buf, request)
@@ -153,17 +177,29 @@ def read_drive_data(creds: Credentials) -> dict:
 
 def write_drive_data(creds: Credentials, data: dict):
     drive = get_drive(creds)
-    folder_id = ensure_folder(drive)
-    q = f"name='{DATA_FILE}' and '{folder_id}' in parents and trashed=false"
-    res = drive.files().list(q=q, fields="files(id)").execute()
     content = json.dumps(data, ensure_ascii=False).encode()
     buf = io.BytesIO(content)
     media = MediaIoBaseUpload(buf, mimetype="application/json")
-    if res["files"]:
-        drive.files().update(fileId=res["files"][0]["id"], media_body=media).execute()
+    # Intentar actualizar el archivo existente primero
+    fid = find_data_file(drive)
+    if fid:
+        drive.files().update(
+            fileId=fid,
+            media_body=media,
+            supportsAllDrives=True,
+        ).execute()
+        log.info(f"finanzas_data.json actualizado (id={fid})")
     else:
+        # Crear archivo nuevo dentro de la carpeta MisFinanzas
+        folder_id = ensure_folder(drive)
         meta = {"name": DATA_FILE, "parents": [folder_id]}
-        drive.files().create(body=meta, media_body=media, fields="id").execute()
+        drive.files().create(
+            body=meta,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True,
+        ).execute()
+        log.info("finanzas_data.json creado en carpeta MisFinanzas")
 
 # ──────────────────────────────────────────────
 # Parsear montos (acepta 1500 / 1.500 / 1,500 / 1.500,00 / 1,500.00)
