@@ -236,30 +236,120 @@ def fmt(v: float, decimals=2) -> str:
 # ──────────────────────────────────────────────
 # Resumen de un mes
 # ──────────────────────────────────────────────
+def parse_mes(raw) -> dict:
+    """
+    Normaliza el estado de un mes al formato interno del bot.
+    La web app guarda cada clave como un JSON string en localStorage y luego
+    vuelca esos strings al JSON de Drive → data[key] = "{\"sueldo\":...}"
+    El bot guarda dicts directamente.
+    """
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+
+    # Estructura de la web app:
+    #   { sueldo, extras:[{desc,amt}], tarjetas:[{name,total,pagado,usdTotal,...}],
+    #     servicios:[{name,amt}], superAmt, gastosExtra:[{desc,amt}] }
+    # Estructura del bot (al guardar desde bot):
+    #   { ingresos:{sueldo, extras:[{desc,monto}]}, servicios:{luz,...},
+    #     tarjetas:[{pagado,totalUsd,...}], otrosGastos:{super, extras:[{desc,monto}]} }
+
+    def nv(v):
+        try: return float(v) if v not in (None, '', 'NaN') else 0.0
+        except: return 0.0
+
+    # ── Ingresos ──
+    if "ingresos" in raw:
+        # formato bot
+        ing = raw["ingresos"] if isinstance(raw["ingresos"], dict) else {}
+        sueldo = nv(ing.get("sueldo", 0))
+        extras_ing = [{"desc": e.get("desc","Extra"), "monto": nv(e.get("monto",0))}
+                      for e in (ing.get("extras") or [])]
+    else:
+        # formato web
+        sueldo = nv(raw.get("sueldo", 0))
+        extras_ing = [{"desc": e.get("desc", e.get("name","Extra")), "monto": nv(e.get("amt", e.get("monto",0)))}
+                      for e in (raw.get("extras") or [])]
+
+    # ── Servicios ──
+    if "servicios" in raw and isinstance(raw["servicios"], list):
+        # formato web: [{name, amt}]
+        total_srv = sum(nv(s.get("amt", 0)) for s in raw["servicios"])
+        srv_detalle = [(s.get("name","Servicio"), nv(s.get("amt",0)))
+                       for s in raw["servicios"] if nv(s.get("amt",0)) > 0]
+    elif "servicios" in raw and isinstance(raw["servicios"], dict):
+        # formato bot: {luz, gas, ...}
+        srv = raw["servicios"]
+        nombres_srv = ["luz","gas","expensas","alquiler","internet","celular","obraSocial"]
+        nombres_label = {"luz":"Luz","gas":"Gas","expensas":"Expensas","alquiler":"Alquiler",
+                         "internet":"Internet","celular":"Celular","obraSocial":"Obra Social"}
+        total_srv = sum(nv(srv.get(s, 0)) for s in nombres_srv)
+        srv_detalle = [(nombres_label[s], nv(srv.get(s,0))) for s in nombres_srv if nv(srv.get(s,0)) > 0]
+    else:
+        total_srv = 0
+        srv_detalle = []
+
+    # ── Tarjetas ──
+    tarjetas = raw.get("tarjetas") or []
+    total_tar_ars = 0
+    total_tar_usd = 0
+    for t in tarjetas:
+        pagado = nv(t.get("pagado", 0))
+        extra_pagos = sum(nv(p.get("amt", p.get("monto", 0))) for p in (t.get("extraPagos") or []))
+        total_tar_ars += pagado + extra_pagos
+        total_tar_usd += nv(t.get("usdTotal", t.get("totalUsd", 0)))
+
+    # ── Otros gastos ──
+    if "otrosGastos" in raw and isinstance(raw["otrosGastos"], dict):
+        # formato bot
+        otros = raw["otrosGastos"]
+        super_val = nv(otros.get("super", 0))
+        extras_gas = [{"desc": e.get("desc","Extra"), "monto": nv(e.get("monto",0))}
+                      for e in (otros.get("extras") or [])]
+    else:
+        # formato web
+        super_val = nv(raw.get("superAmt", 0))
+        extras_gas = [{"desc": e.get("desc", e.get("name","Extra")), "monto": nv(e.get("amt", e.get("monto",0)))}
+                      for e in (raw.get("gastosExtra") or [])]
+
+    return {
+        "sueldo": sueldo,
+        "extras_ing": extras_ing,
+        "total_srv": total_srv,
+        "srv_detalle": srv_detalle,
+        "total_tar_ars": total_tar_ars,
+        "total_tar_usd": total_tar_usd,
+        "super_val": super_val,
+        "extras_gas": extras_gas,
+    }
+
+
 def build_resumen(data: dict, key: str) -> str:
-    mes = data.get(key, {})
+    raw = data.get(key)
+    if not raw:
+        return f"📭 No hay datos para {key_label(key)}."
+
+    mes = parse_mes(raw)
     if not mes:
         return f"📭 No hay datos para {key_label(key)}."
 
     label = key_label(key)
-    ingresos = mes.get("ingresos", {})
-    sueldo = ingresos.get("sueldo", 0) or 0
-    extras_ing = ingresos.get("extras", []) or []
-    total_ing = sueldo + sum(e.get("monto", 0) for e in extras_ing)
+    sueldo = mes["sueldo"]
+    extras_ing = mes["extras_ing"]
+    total_ing = sueldo + sum(e["monto"] for e in extras_ing)
 
-    servicios = mes.get("servicios", {})
-    nombres_srv = ["luz","gas","expensas","alquiler","internet","celular","obraSocial"]
-    total_srv = sum(servicios.get(s, 0) or 0 for s in nombres_srv)
+    total_srv = mes["total_srv"]
+    srv_detalle = mes["srv_detalle"]
+    total_tar_ars = mes["total_tar_ars"]
+    total_tar_usd = mes["total_tar_usd"]
+    super_val = mes["super_val"]
+    extras_gas = mes["extras_gas"]
 
-    tarjetas = mes.get("tarjetas", []) or []
-    total_tar_ars = sum(t.get("pagado", 0) or 0 for t in tarjetas)
-    total_tar_usd = sum(t.get("totalUsd", 0) or 0 for t in tarjetas)
-
-    otros = mes.get("otrosGastos", {})
-    super_val = otros.get("super", 0) or 0
-    extras_gas = otros.get("extras", []) or []
-    total_otros = super_val + sum(e.get("monto", 0) for e in extras_gas)
-
+    total_otros = super_val + sum(e["monto"] for e in extras_gas)
     total_gas = total_srv + total_tar_ars + total_otros
     disponible = total_ing - total_gas
 
@@ -269,16 +359,21 @@ def build_resumen(data: dict, key: str) -> str:
         f"  └ Sueldo:   $ {fmt(sueldo)}",
     ]
     for e in extras_ing:
-        lineas.append(f"  └ {e.get('desc','Extra')}: $ {fmt(e.get('monto',0))}")
+        lineas.append(f"  └ {e['desc']}: $ {fmt(e['monto'])}")
 
-    lineas += [
-        f"\n🏠 Servicios:   $ {fmt(total_srv)}",
-        f"💳 Tarjetas:    $ {fmt(total_tar_ars)}",
-    ]
+    lineas.append(f"\n🏠 Servicios:   $ {fmt(total_srv)}")
+    for nombre, monto in srv_detalle:
+        lineas.append(f"  └ {nombre}: $ {fmt(monto)}")
+
+    lineas.append(f"💳 Tarjetas:    $ {fmt(total_tar_ars)}")
     if total_tar_usd:
         lineas.append(f"   (USD {fmt(total_tar_usd)} incluidos)")
+    if super_val:
+        lineas.append(f"🛒 Super/Merc.: $ {fmt(super_val)}")
+    for e in extras_gas:
+        lineas.append(f"  └ {e['desc']}: $ {fmt(e['monto'])}")
+
     lineas += [
-        f"🛒 Otros:       $ {fmt(total_otros)}",
         f"\n📉 Total gastos: $ {fmt(total_gas)}",
         f"{'✅' if disponible >= 0 else '🔴'} Disponible:  $ {fmt(disponible)}",
     ]
