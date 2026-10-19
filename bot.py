@@ -377,6 +377,17 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True,
     )
 
+async def cmd_desconectar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_chat.id)
+    if uid in users_db:
+        del users_db[uid]
+        save_users(users_db)
+        await update.message.reply_text(
+            "🔓 Cuenta desconectada. Usá /start para volver a conectar tu Google Drive."
+        )
+    else:
+        await update.message.reply_text("No tenías ninguna cuenta conectada.")
+
 async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     texto = (
         "📋 *Comandos disponibles:*\n\n"
@@ -738,7 +749,8 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────────
 async def post_init(app: Application):
     await app.bot.set_my_commands([
-        BotCommand("start",    "Conectar con Google Drive"),
+        BotCommand("start",        "Conectar con Google Drive"),
+        BotCommand("desconectar",  "Desconectar cuenta de Google"),
         BotCommand("gasto",    "Registrar un gasto"),
         BotCommand("ingreso",  "Registrar un ingreso"),
         BotCommand("tarjeta",  "Registrar pago de tarjeta"),
@@ -763,8 +775,9 @@ def main():
     )
 
     # Handlers
-    application.add_handler(CommandHandler("start",    cmd_start))
-    application.add_handler(CommandHandler("ayuda",    cmd_ayuda))
+    application.add_handler(CommandHandler("start",       cmd_start))
+    application.add_handler(CommandHandler("desconectar", cmd_desconectar))
+    application.add_handler(CommandHandler("ayuda",       cmd_ayuda))
     application.add_handler(CommandHandler("gasto",    cmd_gasto))
     application.add_handler(CommandHandler("ingreso",  cmd_ingreso))
     application.add_handler(CommandHandler("tarjeta",  cmd_tarjeta))
