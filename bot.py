@@ -6,6 +6,7 @@ Stack: python-telegram-bot 20.x, Google Drive API (OAuth por usuario)
 import os, json, re, io, logging, asyncio
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
+from concurrent.futures import ThreadPoolExecutor
 
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -113,7 +114,8 @@ def key_label(key: str) -> str:
 # Google Drive helpers
 # ──────────────────────────────────────────────
 def creds_from_dict(d: dict) -> Credentials:
-    return Credentials(
+    from google.auth.transport.requests import Request
+    creds = Credentials(
         token=d.get("token"),
         refresh_token=d.get("refresh_token"),
         token_uri="https://oauth2.googleapis.com/token",
@@ -121,9 +123,31 @@ def creds_from_dict(d: dict) -> Credentials:
         client_secret=CLIENT_SECRET,
         scopes=SCOPES,
     )
+    # Refrescar si está vencido o no tiene token válido
+    if not creds.valid:
+        if creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                log.info("Token de Google refrescado correctamente")
+            except Exception as e:
+                log.error(f"Error al refrescar token: {e}")
+                raise
+        else:
+            raise ValueError("No hay refresh_token — el usuario debe reconectar con /start")
+    return creds
+
+_drive_executor = ThreadPoolExecutor(max_workers=4)
 
 def get_drive(creds: Credentials):
     return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+async def read_drive_data_async(creds: Credentials) -> dict:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_drive_executor, read_drive_data, creds)
+
+async def write_drive_data_async(creds: Credentials, data: dict):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_drive_executor, write_drive_data, creds, data)
 
 def find_data_file(drive) -> str | None:
     """Busca finanzas_data.json en el appDataFolder (espacio oculto de la app)."""
@@ -331,9 +355,12 @@ async def oauth_callback(request: web.Request) -> web.Response:
     name = info.get("name", "Usuario")
 
     uid = str(chat_id)
+    # Preservar el refresh_token viejo si Google no mandó uno nuevo
+    # (Google solo envía refresh_token en el primer authorization)
+    old_refresh_token = users_db.get(uid, {}).get("refresh_token")
     users_db[uid] = {
         "token": creds.token,
-        "refresh_token": creds.refresh_token,
+        "refresh_token": creds.refresh_token or old_refresh_token,
         "name": name,
         "scope_version": 3,  # drive.appdata (v3)
     }
@@ -446,7 +473,7 @@ async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         key = current_key()
         mes = data.setdefault(key, {})
 
@@ -465,7 +492,7 @@ async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             }[categoria]
             mes.setdefault("servicios", {})[key_srv] = monto
 
-        write_drive_data(creds, data)
+        await write_drive_data_async(creds, data)
         await update.message.reply_text(
             f"✅ Gasto guardado:\n"
             f"  📌 {categoria}: *$ {fmt(monto)}*\n"
@@ -501,7 +528,7 @@ async def cmd_ingreso(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         key = current_key()
         mes = data.setdefault(key, {})
         ingresos = mes.setdefault("ingresos", {})
@@ -514,7 +541,7 @@ async def cmd_ingreso(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             extras.append({"desc": desc, "monto": monto})
             etiqueta = desc
 
-        write_drive_data(creds, data)
+        await write_drive_data_async(creds, data)
         await update.message.reply_text(
             f"✅ Ingreso guardado:\n"
             f"  💰 {etiqueta}: *$ {fmt(monto)}*\n"
@@ -546,7 +573,7 @@ async def cmd_tarjeta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         key = current_key()
         mes = data.setdefault(key, {})
         tarjetas = mes.setdefault("tarjetas", [])
@@ -558,7 +585,7 @@ async def cmd_tarjeta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else:
             tarjetas.append({"nombre": nombre, "pagado": monto})
 
-        write_drive_data(creds, data)
+        await write_drive_data_async(creds, data)
         await update.message.reply_text(
             f"✅ Pago de tarjeta guardado:\n"
             f"  💳 {nombre}: *$ {fmt(monto)}*\n"
@@ -576,7 +603,7 @@ async def cmd_resumen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         texto = build_resumen(data, current_key())
         await update.message.reply_text(texto, parse_mode="Markdown")
     except Exception as e:
@@ -630,7 +657,7 @@ async def callback_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     _, key = query.data.split(":", 1)
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         texto = build_resumen(data, key)
         await query.edit_message_text(texto, parse_mode="Markdown")
     except Exception as e:
@@ -644,7 +671,7 @@ async def cmd_comparar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     try:
         creds = creds_from_dict(users_db[uid])
-        data = read_drive_data(creds)
+        data = await read_drive_data_async(creds)
         key_act = current_key()
         key_ant = prev_key()
 
@@ -732,7 +759,7 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
     for uid in list(users_db.keys()):
         try:
             creds = creds_from_dict(users_db[uid])
-            data = read_drive_data(creds)
+            data = await read_drive_data_async(creds)
             resumen = build_resumen(data, ant_key)
             await ctx.bot.send_message(
                 chat_id=int(uid),
