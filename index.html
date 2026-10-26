@@ -35,12 +35,47 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .month-nav button:hover{background:var(--accent-dark);color:var(--accent)}
 .month-label{font-size:14px;font-weight:600;min-width:148px;text-align:center;color:var(--ink)}
 
-/* ── TABS ── */
-.nav-tabs{display:flex;gap:2px;margin-bottom:1.25rem;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
-.nav-tabs::-webkit-scrollbar{display:none}
-.ntab{padding:8px 14px;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--ink4);margin-bottom:-1px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;transition:color .15s}
-.ntab.active{border-bottom-color:var(--accent);color:var(--accent)}
-.ntab:hover:not(.active){color:var(--ink2)}
+/* ── BURGER + DRAWER ── */
+.burger-btn{background:transparent;border:1px solid var(--border2);border-radius:10px;color:var(--ink2);padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;transition:background .15s,color .15s;flex-shrink:0}
+.burger-btn:hover{background:var(--bg3);color:var(--ink)}
+.burger-btn .burger-icon{display:flex;flex-direction:column;gap:4px;width:16px}
+.burger-btn .burger-icon span{display:block;height:2px;background:currentColor;border-radius:1px;transition:transform .25s,opacity .25s,width .25s}
+.burger-btn .burger-icon span:nth-child(2){width:11px}
+.burger-btn.open .burger-icon span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+.burger-btn.open .burger-icon span:nth-child(2){opacity:0;width:0}
+.burger-btn.open .burger-icon span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+.current-tab-label{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+
+/* overlay */
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);pointer-events:none;z-index:90;transition:background .28s}
+.drawer-overlay.open{background:rgba(0,0,0,0.55);pointer-events:auto}
+
+/* drawer panel */
+.drawer{position:fixed;top:0;left:-300px;bottom:0;width:280px;background:var(--bg2);border-right:1px solid var(--border2);z-index:100;display:flex;flex-direction:column;transition:left .28s cubic-bezier(.4,0,.2,1);box-shadow:8px 0 40px rgba(0,0,0,0)}
+.drawer.open{left:0;box-shadow:8px 0 40px rgba(0,0,0,.6)}
+.drawer-head{padding:20px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.drawer-title{font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.drawer-subtitle{font-size:11px;color:var(--ink4);margin-top:1px}
+.drawer-close{background:transparent;border:none;color:var(--ink3);cursor:pointer;padding:6px;border-radius:8px;font-size:18px;line-height:1;transition:color .12s,background .12s}
+.drawer-close:hover{color:var(--ink);background:var(--bg3)}
+.drawer-nav{flex:1;padding:10px 12px;overflow-y:auto}
+.dnav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;cursor:pointer;border:none;background:transparent;width:100%;text-align:left;transition:background .15s;margin-bottom:2px}
+.dnav-item:hover{background:var(--bg3)}
+.dnav-item.active{background:var(--accent-dark)}
+.dnav-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px;transition:background .15s}
+.dnav-item .dnav-icon{background:var(--bg3);color:var(--ink3)}
+.dnav-item.active .dnav-icon{background:rgba(108,143,255,0.18);color:var(--accent)}
+.dnav-item:hover:not(.active) .dnav-icon{background:var(--border2);color:var(--ink2)}
+.dnav-label{font-size:14px;font-weight:500;color:var(--ink3);flex:1}
+.dnav-item.active .dnav-label{color:var(--ink);font-weight:600}
+.dnav-item:hover:not(.active) .dnav-label{color:var(--ink2)}
+.dnav-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;opacity:0;transition:opacity .15s}
+.dnav-item.active .dnav-dot{opacity:1}
+.drawer-footer{padding:12px 16px 20px;border-top:1px solid var(--border)}
+.drawer-user{display:flex;align-items:center;gap:10px}
+.drawer-user-info{flex:1;min-width:0}
+.drawer-username{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drawer-sync{font-size:11px;color:var(--ink4)}
 .view{display:none}.view.active{display:block}
 
 /* ── CARDS ── */
@@ -225,12 +260,66 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 <body>
 <div class="container">
 <div class="header">
-  <div><h1>Mis finanzas</h1><p>Panel personal mensual</p></div>
+  <button class="burger-btn" id="menuBtn" onclick="toggleDrawer()">
+    <div class="burger-icon"><span></span><span></span><span></span></div>
+    <span class="current-tab-label" id="currentTabLabel">Resumen</span>
+  </button>
   <div class="header-right">
     <div class="month-nav">
       <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
       <span class="month-label" id="monthLabel"></span>
       <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+<!-- Drawer -->
+<div class="drawer" id="navDrawer">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-title">Mis Finanzas</div>
+      <div class="drawer-subtitle">Panel personal mensual</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()"><i class="ti ti-x"></i></button>
+  </div>
+  <nav class="drawer-nav">
+    <button class="dnav-item active" id="dnav-resumen" onclick="navTo('resumen')">
+      <div class="dnav-icon"><i class="ti ti-layout-dashboard"></i></div>
+      <span class="dnav-label">Resumen</span>
+      <span class="dnav-dot"></span>
+    </button>
+    <button class="dnav-item" id="dnav-ingresos" onclick="navTo('ingresos')">
+      <div class="dnav-icon"><i class="ti ti-wallet"></i></div>
+      <span class="dnav-label">Ingresos</span>
+      <span class="dnav-dot"></span>
+    </button>
+    <button class="dnav-item" id="dnav-tarjetas" onclick="navTo('tarjetas')">
+      <div class="dnav-icon"><i class="ti ti-credit-card"></i></div>
+      <span class="dnav-label">Tarjetas</span>
+      <span class="dnav-dot"></span>
+    </button>
+    <button class="dnav-item" id="dnav-servicios" onclick="navTo('servicios')">
+      <div class="dnav-icon"><i class="ti ti-building"></i></div>
+      <span class="dnav-label">Servicios</span>
+      <span class="dnav-dot"></span>
+    </button>
+    <button class="dnav-item" id="dnav-gastos" onclick="navTo('gastos')">
+      <div class="dnav-icon"><i class="ti ti-shopping-cart"></i></div>
+      <span class="dnav-label">Otros gastos</span>
+      <span class="dnav-dot"></span>
+    </button>
+  </nav>
+  <div class="drawer-footer">
+    <div class="drawer-user">
+      <div class="user-avatar" id="drawerAvatar" style="width:34px;height:34px;font-size:13px">?</div>
+      <div class="drawer-user-info">
+        <div class="drawer-username" id="drawerName">—</div>
+        <div class="drawer-sync" id="drawerSync">Sin sincronizar</div>
+      </div>
+      <button class="btn" onclick="signOut();closeDrawer()" style="font-size:12px;padding:4px 10px"><i class="ti ti-logout"></i></button>
     </div>
   </div>
 </div>
@@ -255,13 +344,6 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 </div>
 
 <div id="appContent" style="display:none">
-<div class="nav-tabs">
-  <button class="ntab active" onclick="showTab('resumen',this)"><i class="ti ti-layout-dashboard"></i> Resumen</button>
-  <button class="ntab" onclick="showTab('ingresos',this)"><i class="ti ti-wallet"></i> Ingresos</button>
-  <button class="ntab" onclick="showTab('tarjetas',this)"><i class="ti ti-credit-card"></i> Tarjetas</button>
-  <button class="ntab" onclick="showTab('servicios',this)"><i class="ti ti-building"></i> Servicios</button>
-  <button class="ntab" onclick="showTab('gastos',this)"><i class="ti ti-shopping-cart"></i> Otros gastos</button>
-</div>
 
 <div id="view-resumen" class="view active">
   <!-- Hero card estilo Dark Premium -->
@@ -370,7 +452,7 @@ function avatarColor(n){const c=['#2c5f9e','#1a7a4a','#8a5f10','#6b3fa0','#c0392
 
 function signIn(){const cl=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async(r)=>{if(r.error){setSyncInfo('Error al conectar','err');return;}accessToken=r.access_token;localStorage.setItem('fin_gtoken',accessToken);await fetchUserInfo();await loadFromDrive();showApp();}});cl.requestAccessToken();}
 function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;serviciosPerpetuas=[];localStorage.removeItem('fin_gtoken');localStorage.removeItem('fin_gdrive_fileid');localStorage.removeItem('fin_gdrive_srv_id');localStorage.removeItem('fin_gdrive_root_id');document.getElementById('driveBar').style.display='none';document.getElementById('appContent').style.display='none';document.getElementById('loginScreen').style.display='block';}
-async function fetchUserInfo(){try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)return;const u=await r.json();const name=u.name||u.email||'Usuario';document.getElementById('driveName').textContent=name;const av=document.getElementById('driveAvatar');av.textContent=getInitials(name);av.style.background=avatarColor(name);}catch(e){}}
+async function fetchUserInfo(){try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)return;const u=await r.json();const name=u.name||u.email||'Usuario';document.getElementById('driveName').textContent=name;const av=document.getElementById('driveAvatar');av.textContent=getInitials(name);av.style.background=avatarColor(name);syncDrawerUser();}catch(e){}}
 function showApp(){document.getElementById('loginScreen').style.display='none';document.getElementById('driveBar').style.display='flex';document.getElementById('appContent').style.display='block';renderAll();}
 async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{...opts.headers,Authorization:'Bearer '+accessToken}});if(r.status===401){setSyncInfo('Sesión expirada','err');return null;}return r;}
 
@@ -390,7 +472,7 @@ async function saveServiciosToDrive(){try{const root=await getRootFolder();if(!r
 
 async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{await loadServiciosFromDrive();const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}const d=await readJsonFile(fid);if(!d){setSyncInfo('Error al leer datos','err');return;}Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));state=getState();setSyncInfo('Sincronizado ✓','ok');}catch(e){setSyncInfo('Error al cargar','err');}}
 async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const root=await getRootFolder();if(!root){setSyncInfo('Error: carpeta Drive','err');return;}const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const fid=await findDriveFile();const newId=await writeJsonFile(DRIVE_FILE,root,d,fid||null);if(newId&&!driveFileId){driveFileId=newId;localStorage.setItem('fin_gdrive_fileid',newId);}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
-function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');}
+function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');syncDrawerUser();}
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(pushToDrive,3000);}
 async function init(){document.getElementById('loginScreen').style.display='block';const saved=localStorage.getItem('fin_gtoken');if(saved){accessToken=saved;try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(r.ok){await fetchUserInfo();await loadFromDrive();showApp();return;}}catch(e){}localStorage.removeItem('fin_gtoken');accessToken=null;}}
 
@@ -519,7 +601,19 @@ async function parsePDF(file, idx){
 function save(){state.sueldo=parseFloat(document.getElementById('sueldo').value)||0;state.superAmt=parseFloat(document.getElementById('super-amt').value)||0;try{localStorage.setItem(mkey(),JSON.stringify(state));}catch(e){}schedulePush();}
 function prevMonthYM(){let pm=curMonth-1,py=curYear;if(pm<0){pm=11;py--;}return{y:py,m:pm};}
 function changeMonth(d){save();curMonth+=d;if(curMonth>11){curMonth=0;curYear++;}if(curMonth<0){curMonth=11;curYear--;}state=getState();renderAll();}
-function showTab(name,btn){document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('view-'+name).classList.add('active');btn.classList.add('active');}
+/* ── DRAWER NAV ── */
+const TAB_LABELS={resumen:'Resumen',ingresos:'Ingresos',tarjetas:'Tarjetas',servicios:'Servicios',gastos:'Otros gastos'};
+function toggleDrawer(){const d=document.getElementById('navDrawer'),o=document.getElementById('drawerOverlay'),b=document.getElementById('menuBtn');const open=d.classList.toggle('open');o.classList.toggle('open',open);b.classList.toggle('open',open);document.body.style.overflow=open?'hidden':'';}
+function closeDrawer(){const d=document.getElementById('navDrawer'),o=document.getElementById('drawerOverlay'),b=document.getElementById('menuBtn');d.classList.remove('open');o.classList.remove('open');b.classList.remove('open');document.body.style.overflow='';}
+function navTo(name){showTab(name);closeDrawer();}
+function showTab(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.dnav-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  const di=document.getElementById('dnav-'+name);if(di)di.classList.add('active');
+  const lbl=document.getElementById('currentTabLabel');if(lbl)lbl.textContent=TAB_LABELS[name]||name;
+}
+function syncDrawerUser(){const n=document.getElementById('driveName'),a=document.getElementById('driveAvatar'),s=document.getElementById('syncInfo');const dn=document.getElementById('drawerName'),da=document.getElementById('drawerAvatar'),ds=document.getElementById('drawerSync');if(n&&dn)dn.textContent=n.textContent||'—';if(a&&da)da.textContent=a.textContent||'?';if(s&&ds)ds.textContent=s.textContent||'';}
 function totalIngresos(s){const st=s||state;return nv(st.sueldo)+st.extras.reduce((a,e)=>a+e.amt,0);}
 function calcTarjetasPagadas(s){const st=s||state;return st.tarjetas.reduce((a,t)=>a+nv(t.pagado)+t.extraPagos.reduce((s2,p)=>s2+p.amt,0),0);}
 function totalPagadoTarjetas(){return calcTarjetasPagadas();}
