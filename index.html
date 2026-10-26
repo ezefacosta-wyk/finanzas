@@ -136,8 +136,12 @@ h2{font-size:16px;font-weight:500;margin-bottom:12px;color:var(--ink)}
 .detalle-cuota{font-size:11px;color:var(--info);background:var(--info-bg);padding:1px 6px;border-radius:10px;margin-right:6px}
 .detalle-monto{font-weight:500;color:var(--ink);white-space:nowrap;margin-left:8px}
 .detalle-count{font-size:11px;color:var(--ink3);margin-left:4px}
-.serv-input{width:110px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right}
+.serv-input{width:100px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:13px;text-align:right}
 .serv-input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.serv-row{gap:4px;flex-wrap:nowrap;align-items:center}
+.btn-danger-icon{color:var(--danger)!important}
+.comp-upload-box{background:var(--surface);border:0.5px solid var(--border2);border-radius:10px;padding:14px;margin-top:12px;font-size:13px}
+.comp-upload-box input[type=file]{display:block;width:100%;padding:6px;border:0.5px dashed var(--border2);border-radius:6px;background:var(--surface2);color:var(--ink);font-size:12px;margin-top:4px}
 .progress-bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:6px}
 .progress-fill{height:100%;border-radius:3px;transition:width .3s}
 .drive-bar{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;padding:8px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:10px;flex-wrap:wrap}
@@ -222,8 +226,14 @@ h2{font-size:16px;font-weight:500;margin-bottom:12px;color:var(--ink)}
 </div>
 <div id="view-tarjetas" class="view"><div id="tarjetas-container"></div></div>
 <div id="view-servicios" class="view">
-  <div class="card"><h2>Servicios y gastos fijos</h2><div id="servicios-list"></div>
-    <div class="add-row" style="margin-top:10px"><input type="text" id="serv-name" placeholder="Nombre del servicio"><input type="number" id="serv-amt" placeholder="Monto" style="width:100px"><button class="btn primary" onclick="addServicio()"><i class="ti ti-plus"></i></button></div>
+  <div class="card">
+    <h2>Servicios y gastos fijos</h2>
+    <p style="font-size:12px;color:var(--ink3);margin-bottom:10px">Los servicios son perpetuos — se mantienen todos los meses. Cargá el monto de cada mes y subí los comprobantes.</p>
+    <div id="servicios-list"></div>
+    <div class="add-row" style="margin-top:10px">
+      <input type="text" id="serv-name" placeholder="Nuevo servicio (ej: Luz)">
+      <button class="btn primary" onclick="addServicio()"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
   </div>
 </div>
 <div id="view-gastos" class="view">
@@ -242,8 +252,10 @@ h2{font-size:16px;font-weight:500;margin-bottom:12px;color:var(--ink)}
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script>
 const CLIENT_ID='40977181531-47pauk08197779rjmrccasm8omdpl5kk.apps.googleusercontent.com';
-const SCOPES='https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.profile';
+const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile openid';
 const DRIVE_FILE='finanzas_data.json';
+const SERVICIOS_FILE='servicios.json';
+const ROOT_FOLDER='Finanzas';
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 /* ── LÍMITES DE COLUMNAS (coordenadas X del PDF de Galicia) ──
@@ -261,14 +273,16 @@ const X = { IND:73, REF:86, CUOTA:310, COMP:355, PESOS:425, DOL:530, DOL_END:620
 const SKIP = /^(SU PAGO|TARJETA\s+\d+\s+Total|DETALLE DEL CONSUMO|FECHA|CONSOLIDADO|TOTAL A PAGAR|PAGO M[IÍ]NIMO|INTERESES FINANCIACION|DB IVA|DB\.IVA|DB\.RG|IIBB PERCEP|IVA RG)/i;
 
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const SERV_DEF=['Luz','Gas','Expensas','Alquiler','Internet','Celular','Obra social'];
 const TDEF=['Tarjeta 1','Tarjeta 2'];
 let now=new Date(), curYear=now.getFullYear(), curMonth=now.getMonth();
-let accessToken=null, driveFileId=null, pushTimer=null;
+let accessToken=null, driveFileId=null, serviciosFileId=null, rootFolderId=null, pushTimer=null;
+// servicios perpetuos: [{id, name}]
+let serviciosPerpetuas=[];
 
 function mkey(y,m){return 'fin4_'+(y===undefined?curYear:y)+'_'+(m===undefined?curMonth:m);}
-function defState(){return {sueldo:'',extras:[],tarjetas:TDEF.map(n=>({name:n,total:'',minimo:'',usdTotal:'',usdMinimo:'',tcambio:'',pagado:'',extraPagos:[],detalle:[]})),servicios:SERV_DEF.map(n=>({name:n,amt:0})),superAmt:'',gastosExtra:[]};}
-function getState(y,m){try{const r=localStorage.getItem(mkey(y,m));if(r){const s=JSON.parse(r);s.tarjetas.forEach(t=>{if(!t.extraPagos)t.extraPagos=[];if(!t.detalle)t.detalle=[];});return s;}}catch(e){}return (y===undefined&&m===undefined)?defState():null;}
+function defState(){return {sueldo:'',extras:[],tarjetas:TDEF.map(n=>({name:n,total:'',minimo:'',usdTotal:'',usdMinimo:'',tcambio:'',pagado:'',extraPagos:[],detalle:[]})),servicios:serviciosPerpetuas.map(s=>({id:s.id,name:s.name,amt:0})),superAmt:'',gastosExtra:[]};}
+function getState(y,m){try{const r=localStorage.getItem(mkey(y,m));if(r){const s=JSON.parse(r);s.tarjetas.forEach(t=>{if(!t.extraPagos)t.extraPagos=[];if(!t.detalle)t.detalle=[];});// merge perpetual services: add new ones, keep amounts for existing
+const curIds=new Set((s.servicios||[]).map(sv=>sv.id));serviciosPerpetuas.forEach(ps=>{if(!curIds.has(ps.id))s.servicios.push({id:ps.id,name:ps.name,amt:0});});s.servicios=s.servicios.filter(sv=>serviciosPerpetuas.find(ps=>ps.id===sv.id));return s;}}catch(e){}return (y===undefined&&m===undefined)?defState():null;}
 let state=getState();
 function fmt(n){return '$'+Math.round(n).toLocaleString('es-AR');}
 function fmtUSD(n){return 'U$S '+parseFloat(n||0).toFixed(2);}
@@ -277,14 +291,28 @@ function parseMonto(s){return parseFloat(String(s||'').replace(/\./g,'').replace
 function getInitials(n){if(!n)return '?';const p=n.trim().split(/\s+/);return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():n.slice(0,2).toUpperCase();}
 function avatarColor(n){const c=['#2c5f9e','#1a7a4a','#8a5f10','#6b3fa0','#c0392b','#16798a'];let h=0;for(let i=0;i<(n||'').length;i++)h=(h*31+n.charCodeAt(i))%c.length;return c[Math.abs(h)];}
 
-function signIn(){const cl=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async(r)=>{if(r.error){setSyncInfo('Error','err');return;}accessToken=r.access_token;localStorage.setItem('fin_gtoken',accessToken);await fetchUserInfo();await loadFromDrive();showApp();}});cl.requestAccessToken();}
-function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;driveFileId=null;localStorage.removeItem('fin_gtoken');localStorage.removeItem('fin_gdrive_fileid');document.getElementById('driveBar').style.display='none';document.getElementById('appContent').style.display='none';document.getElementById('loginScreen').style.display='block';}
+function signIn(){const cl=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async(r)=>{if(r.error){setSyncInfo('Error al conectar','err');return;}accessToken=r.access_token;localStorage.setItem('fin_gtoken',accessToken);await fetchUserInfo();await loadFromDrive();showApp();}});cl.requestAccessToken();}
+function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;serviciosPerpetuas=[];localStorage.removeItem('fin_gtoken');localStorage.removeItem('fin_gdrive_fileid');localStorage.removeItem('fin_gdrive_srv_id');localStorage.removeItem('fin_gdrive_root_id');document.getElementById('driveBar').style.display='none';document.getElementById('appContent').style.display='none';document.getElementById('loginScreen').style.display='block';}
 async function fetchUserInfo(){try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)return;const u=await r.json();const name=u.name||u.email||'Usuario';document.getElementById('driveName').textContent=name;const av=document.getElementById('driveAvatar');av.textContent=getInitials(name);av.style.background=avatarColor(name);}catch(e){}}
 function showApp(){document.getElementById('loginScreen').style.display='none';document.getElementById('driveBar').style.display='flex';document.getElementById('appContent').style.display='block';renderAll();}
 async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{...opts.headers,Authorization:'Bearer '+accessToken}});if(r.status===401){setSyncInfo('Sesión expirada','err');return null;}return r;}
-async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27'+DRIVE_FILE+'%27&fields=files(id)');if(!r)return null;const d=await r.json();if(d.files&&d.files.length){driveFileId=d.files[0].id;localStorage.setItem('fin_gdrive_fileid',driveFileId);}return driveFileId||null;}
-async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fid+'?alt=media');if(!r)return;const d=await r.json();Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));state=getState();setSyncInfo('Sincronizado ✓','ok');}catch(e){setSyncInfo('Error al cargar','err');}}
-async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const blob=new Blob([JSON.stringify(d)],{type:'application/json'});const fid=await findDriveFile();if(fid){await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+fid+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});}else{const meta={name:DRIVE_FILE,parents:['appDataFolder']};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(r){const rd=await r.json();driveFileId=rd.id;localStorage.setItem('fin_gdrive_fileid',driveFileId);}}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
+
+/* ── Drive folder/file helpers ── */
+async function findFolder(name,parentId){let q='mimeType=\'application/vnd.google-apps.folder\' and name=\''+encodeURIComponent(name)+'\' and trashed=false';if(parentId)q+=' and \''+parentId+'\' in parents';else q+=' and \'root\' in parents';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
+async function ensureFolder(name,parentId){let fid=await findFolder(name,parentId);if(fid)return fid;const meta={name,mimeType:'application/vnd.google-apps.folder'};if(parentId)meta.parents=[parentId];else meta.parents=['root'];const r=await driveReq('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta)});if(!r)return null;const d=await r.json();return d.id||null;}
+async function getRootFolder(){if(rootFolderId)return rootFolderId;const cached=localStorage.getItem('fin_gdrive_root_id');if(cached){rootFolderId=cached;return cached;}rootFolderId=await ensureFolder(ROOT_FOLDER,null);if(rootFolderId)localStorage.setItem('fin_gdrive_root_id',rootFolderId);return rootFolderId;}
+async function findFileInFolder(name,folderId){const q='name=\''+encodeURIComponent(name)+'\' and \''+folderId+'\' in parents and trashed=false';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
+async function readJsonFile(fileId){const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media');if(!r)return null;try{return await r.json();}catch(e){return null;}}
+async function writeJsonFile(name,folderId,data,existingId){const blob=new Blob([JSON.stringify(data)],{type:'application/json'});if(existingId){await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+existingId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});return existingId;}const meta={name,parents:[folderId]};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(!r)return null;const d=await r.json();return d.id||null;}
+
+async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const root=await getRootFolder();if(!root)return null;const fid=await findFileInFolder(DRIVE_FILE,root);if(fid){driveFileId=fid;localStorage.setItem('fin_gdrive_fileid',fid);}return driveFileId||null;}
+async function findServiciosFile(){if(serviciosFileId)return serviciosFileId;const c=localStorage.getItem('fin_gdrive_srv_id');if(c){serviciosFileId=c;return c;}const root=await getRootFolder();if(!root)return null;const fid=await findFileInFolder(SERVICIOS_FILE,root);if(fid){serviciosFileId=fid;localStorage.setItem('fin_gdrive_srv_id',fid);}return serviciosFileId||null;}
+
+async function loadServiciosFromDrive(){try{const fid=await findServiciosFile();if(!fid){serviciosPerpetuas=[];return;}const d=await readJsonFile(fid);if(Array.isArray(d))serviciosPerpetuas=d;else serviciosPerpetuas=[];}catch(e){serviciosPerpetuas=[];}}
+async function saveServiciosToDrive(){try{const root=await getRootFolder();if(!root)return;const fid=await findServiciosFile();const newId=await writeJsonFile(SERVICIOS_FILE,root,serviciosPerpetuas,fid||null);if(newId&&!serviciosFileId){serviciosFileId=newId;localStorage.setItem('fin_gdrive_srv_id',newId);}}catch(e){setSyncInfo('Error al guardar servicios','err');}}
+
+async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{await loadServiciosFromDrive();const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}const d=await readJsonFile(fid);if(!d){setSyncInfo('Error al leer datos','err');return;}Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));state=getState();setSyncInfo('Sincronizado ✓','ok');}catch(e){setSyncInfo('Error al cargar','err');}}
+async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const root=await getRootFolder();if(!root){setSyncInfo('Error: carpeta Drive','err');return;}const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const fid=await findDriveFile();const newId=await writeJsonFile(DRIVE_FILE,root,d,fid||null);if(newId&&!driveFileId){driveFileId=newId;localStorage.setItem('fin_gdrive_fileid',newId);}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
 function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');}
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(pushToDrive,3000);}
 async function init(){document.getElementById('loginScreen').style.display='block';const saved=localStorage.getItem('fin_gtoken');if(saved){accessToken=saved;try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(r.ok){await fetchUserInfo();await loadFromDrive();showApp();return;}}catch(e){}localStorage.removeItem('fin_gtoken');accessToken=null;}}
@@ -435,10 +463,36 @@ function updateTResumen(i){const t=state.tarjetas[i],ingresos=totalIngresos(),su
 function addExtraPago(i){const nm=document.getElementById('ep-name-'+i).value.trim(),a=parseFloat(document.getElementById('ep-amt-'+i).value)||0;if(!nm||!a)return;state.tarjetas[i].extraPagos.push({name:nm,amt:a});document.getElementById('ep-name-'+i).value='';document.getElementById('ep-amt-'+i).value='';save();renderTarjetas();recalc();}
 function removeExtraPago(i,j){state.tarjetas[i].extraPagos.splice(j,1);save();renderTarjetas();recalc();}
 function addTarjeta(){state.tarjetas.push({name:'Nueva tarjeta',total:'',minimo:'',usdTotal:'',usdMinimo:'',tcambio:'',pagado:'',extraPagos:[],detalle:[]});save();renderTarjetas();}
-function renderServicios(){document.getElementById('servicios-list').innerHTML=state.servicios.map((s,i)=>`<div class="item-row"><span class="item-name">${s.name}</span><input class="serv-input" type="number" value="${s.amt||''}" placeholder="0" onchange="updateServ(${i},this.value)"><button class="btn-icon" onclick="removeServ(${i})"><i class="ti ti-x"></i></button></div>`).join('');}
-function updateServ(i,v){state.servicios[i].amt=parseFloat(v)||0;save();recalc();}
-function removeServ(i){state.servicios.splice(i,1);save();renderServicios();recalc();}
-function addServicio(){const nm=document.getElementById('serv-name').value.trim(),a=parseFloat(document.getElementById('serv-amt').value)||0;if(!nm)return;state.servicios.push({name:nm,amt:a});document.getElementById('serv-name').value='';document.getElementById('serv-amt').value='';save();renderServicios();recalc();}
+function renderServicios(){
+  const mespfx=curYear+'-'+(curMonth+1).toString().padStart(2,'0');
+  document.getElementById('servicios-list').innerHTML=state.servicios.map((s,i)=>{
+    const srvId=s.id||('srv_'+i);
+    return `<div class="item-row serv-row" id="srv-row-${srvId}">
+      <span class="item-name">${s.name}</span>
+      <input class="serv-input" type="number" value="${s.amt||''}" placeholder="0" onchange="updateServ('${srvId}',this.value)">
+      <button class="btn-icon" title="Subir comprobante" onclick="openComprobante('${srvId}','${s.name}','${mespfx}')"><i class="ti ti-upload"></i></button>
+      <button class="btn-icon" title="Ver comprobantes" onclick="verComprobantes('${srvId}','${s.name}','${mespfx}')"><i class="ti ti-files"></i></button>
+      <button class="btn-icon btn-danger-icon" onclick="removeServicio('${srvId}')"><i class="ti ti-trash"></i></button>
+    </div>`;
+  }).join('')+'<div id="comp-modal-area"></div>';}
+function updateServ(srvId,v){const s=state.servicios.find(sv=>sv.id===srvId);if(s){s.amt=parseFloat(v)||0;save();recalc();}}
+async function removeServicio(srvId){if(!confirm('¿Eliminar este servicio de forma permanente?'))return;serviciosPerpetuas=serviciosPerpetuas.filter(s=>s.id!==srvId);state.servicios=state.servicios.filter(s=>s.id!==srvId);await saveServiciosToDrive();save();renderServicios();recalc();}
+async function addServicio(){const nm=document.getElementById('serv-name').value.trim();if(!nm)return;const newSrv={id:'srv_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),name:nm};serviciosPerpetuas.push(newSrv);state.servicios.push({id:newSrv.id,name:nm,amt:0});document.getElementById('serv-name').value='';await saveServiciosToDrive();save();renderServicios();recalc();}
+
+/* ── Comprobantes ── */
+async function getComprobantesFolder(srvName){const root=await getRootFolder();if(!root)return null;let compRoot=await findFolder('Comprobantes',root);if(!compRoot){compRoot=await ensureFolder('Comprobantes',root);}return ensureFolder(srvName,compRoot);}
+function openComprobante(srvId,srvName,mesPfx){const area=document.getElementById('comp-modal-area');area.innerHTML=`<div class="comp-upload-box" id="comp-box-${srvId}">
+  <div style="font-weight:500;margin-bottom:6px"><i class="ti ti-upload"></i> Subir comprobante — ${srvName} (${mesPfx})</div>
+  <input type="file" id="comp-file-${srvId}" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple>
+  <div style="margin-top:8px;display:flex;gap:8px">
+    <button class="btn primary" onclick="uploadComprobante('${srvId}','${srvName}','${mesPfx}')"><i class="ti ti-cloud-upload"></i> Subir</button>
+    <button class="btn" onclick="document.getElementById('comp-modal-area').innerHTML=''">Cancelar</button>
+  </div>
+  <div id="comp-status-${srvId}" style="margin-top:6px;font-size:12px"></div>
+</div>`;}
+async function uploadComprobante(srvId,srvName,mesPfx){const input=document.getElementById('comp-file-'+srvId);if(!input||!input.files.length){alert('Seleccioná un archivo primero.');return;}const status=document.getElementById('comp-status-'+srvId);status.textContent='Subiendo...';try{const folderId=await getComprobantesFolder(srvName);if(!folderId){status.textContent='Error: no se pudo crear carpeta';return;}let ok=0;for(const file of input.files){const prefix=mesPfx+'_';const fname=prefix+file.name;const blob=file;const meta={name:fname,parents:[folderId]};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(r)ok++;}status.innerHTML='<span style="color:var(--success)">✓ '+ok+' archivo(s) subido(s)</span>';setTimeout(()=>{document.getElementById('comp-modal-area').innerHTML='';},2000);}catch(e){status.textContent='Error al subir: '+e.message;}}
+async function verComprobantes(srvId,srvName,mesPfx){const area=document.getElementById('comp-modal-area');area.innerHTML=`<div class="comp-upload-box"><div style="font-weight:500;margin-bottom:8px"><i class="ti ti-files"></i> Comprobantes — ${srvName} (${mesPfx})</div><div id="comp-list-${srvId}">Cargando...</div><button class="btn" style="margin-top:8px" onclick="document.getElementById('comp-modal-area').innerHTML=''">Cerrar</button></div>`;
+try{const folderId=await getComprobantesFolder(srvName);if(!folderId){document.getElementById('comp-list-'+srvId).textContent='Sin carpeta';return;}const q='\''+folderId+'\' in parents and name contains \''+mesPfx+'\' and trashed=false';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name,mimeType,size,webViewLink,webContentLink)');if(!r){document.getElementById('comp-list-'+srvId).textContent='Error';return;}const d=await r.json();const files=d.files||[];if(!files.length){document.getElementById('comp-list-'+srvId).innerHTML='<em>No hay comprobantes para este mes</em>';return;}document.getElementById('comp-list-'+srvId).innerHTML=files.map(f=>`<div class="item-row" style="gap:8px"><span class="item-name" style="font-size:12px">${f.name.replace(mesPfx+'_','')}</span><a href="${f.webViewLink}" target="_blank" class="btn-icon" title="Ver"><i class="ti ti-eye"></i></a><a href="${f.webContentLink}" download class="btn-icon" title="Descargar"><i class="ti ti-download"></i></a></div>`).join('');}catch(e){document.getElementById('comp-list-'+srvId).textContent='Error: '+e.message;}}
 function renderGastosExtra(){document.getElementById('gastos-extra-list').innerHTML=state.gastosExtra.map((g,i)=>`<div class="item-row"><span class="item-name">${g.name}</span><span class="item-amt">${fmt(g.amt)}</span><button class="btn-icon" onclick="removeGastoExtra(${i})"><i class="ti ti-x"></i></button></div>`).join('');}
 function addGastoExtra(){const nm=document.getElementById('gextra-name').value.trim(),a=parseFloat(document.getElementById('gextra-amt').value)||0;if(!nm||!a)return;state.gastosExtra.push({name:nm,amt:a});document.getElementById('gextra-name').value='';document.getElementById('gextra-amt').value='';save();renderGastosExtra();recalc();}
 function removeGastoExtra(i){state.gastosExtra.splice(i,1);save();renderGastosExtra();recalc();}
