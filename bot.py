@@ -32,28 +32,29 @@ PORT          = int(os.environ.get("PORT", 8080))
 TZ = ZoneInfo("America/Buenos_Aires")
 
 SCOPES = [
-    "https://www.googleapis.com/auth/drive.appdata",
+    "https://www.googleapis.com/auth/drive.file",
     "openid",
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
 
-DRIVE_FOLDER = "MisFinanzas"
-DATA_FILE    = "finanzas_data.json"
+# Estructura en Drive raíz:
+#   Finanzas/
+#     finanzas_data.json
+#     servicios.json
+#     Comprobantes/
+#       <NombreServicio>/
+#         <archivo>
+DRIVE_ROOT_FOLDER  = "Finanzas"
+DATA_FILE          = "finanzas_data.json"
+SERVICIOS_FILE     = "servicios.json"
+COMPROBANTES_FOLDER = "Comprobantes"
 
 MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
          "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
-CATEGORIAS = {
+CATEGORIAS_FIJAS = {
     "super": "Super/Mercado",
     "mercado": "Super/Mercado",
-    "luz": "Luz",
-    "gas": "Gas",
-    "expensas": "Expensas",
-    "alquiler": "Alquiler",
-    "internet": "Internet",
-    "celular": "Celular",
-    "obra": "Obra Social",
-    "social": "Obra Social",
     "extra": "Gasto Extra",
 }
 
@@ -141,36 +142,52 @@ _drive_executor = ThreadPoolExecutor(max_workers=4)
 def get_drive(creds: Credentials):
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
-async def read_drive_data_async(creds: Credentials) -> dict:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(_drive_executor, read_drive_data, creds)
+# ── Helpers de carpetas en Drive raíz ──────────────────────────────────────
 
-async def write_drive_data_async(creds: Credentials, data: dict):
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(_drive_executor, write_drive_data, creds, data)
+def find_folder(drive, name: str, parent_id: str | None = None) -> str | None:
+    """Busca una carpeta por nombre. Si parent_id es None busca en root."""
+    parent_q = f"'{parent_id}' in parents" if parent_id else "'root' in parents"
+    q = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and {parent_q} and trashed=false"
+    res = drive.files().list(q=q, spaces="drive", fields="files(id)").execute()
+    files = res.get("files", [])
+    return files[0]["id"] if files else None
 
-def find_data_file(drive) -> str | None:
-    """Busca finanzas_data.json en el appDataFolder (espacio oculto de la app)."""
-    q = f"name='{DATA_FILE}'"
-    res = drive.files().list(
-        q=q,
-        spaces="appDataFolder",
-        fields="files(id)",
-        orderBy="modifiedTime desc",
-    ).execute()
-    if res["files"]:
-        return res["files"][0]["id"]
-    return None
+def ensure_folder(drive, name: str, parent_id: str | None = None) -> str:
+    """Devuelve el id de la carpeta, creándola si no existe."""
+    fid = find_folder(drive, name, parent_id)
+    if fid:
+        return fid
+    meta = {
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder",
+    }
+    if parent_id:
+        meta["parents"] = [parent_id]
+    f = drive.files().create(body=meta, fields="id").execute()
+    log.info(f"Carpeta creada en Drive: '{name}' (id={f['id']})")
+    return f["id"]
 
-def read_drive_data(creds: Credentials) -> dict:
-    drive = get_drive(creds)
-    fid = find_data_file(drive)
-    if not fid:
-        log.info("No se encontró finanzas_data.json en appDataFolder")
-        return {}
-    log.info(f"Leyendo finanzas_data.json con id={fid}")
+def get_root_folder(drive) -> str:
+    """Devuelve (creando si no existe) el id de la carpeta raíz Finanzas/."""
+    return ensure_folder(drive, DRIVE_ROOT_FOLDER)
+
+def get_comprobantes_folder(drive, root_id: str, servicio_name: str) -> str:
+    """Devuelve el id de Finanzas/Comprobantes/<servicio>, creando la jerarquía si falta."""
+    comp_id = ensure_folder(drive, COMPROBANTES_FOLDER, root_id)
+    return ensure_folder(drive, servicio_name, comp_id)
+
+# ── Helpers de archivos JSON ────────────────────────────────────────────────
+
+def find_file_in_folder(drive, name: str, folder_id: str) -> str | None:
+    q = f"name='{name}' and '{folder_id}' in parents and trashed=false"
+    res = drive.files().list(q=q, spaces="drive", fields="files(id)",
+                             orderBy="modifiedTime desc").execute()
+    files = res.get("files", [])
+    return files[0]["id"] if files else None
+
+def read_json_file(drive, file_id: str) -> dict | list:
     buf = io.BytesIO()
-    request = drive.files().get_media(fileId=fid)
+    request = drive.files().get_media(fileId=file_id)
     dl = MediaIoBaseDownload(buf, request)
     done = False
     while not done:
@@ -178,19 +195,127 @@ def read_drive_data(creds: Credentials) -> dict:
     buf.seek(0)
     return json.loads(buf.read().decode())
 
-def write_drive_data(creds: Credentials, data: dict):
-    drive = get_drive(creds)
+def write_json_file(drive, name: str, folder_id: str, data, existing_id: str | None = None):
     content = json.dumps(data, ensure_ascii=False).encode()
     buf = io.BytesIO(content)
     media = MediaIoBaseUpload(buf, mimetype="application/json")
-    fid = find_data_file(drive)
-    if fid:
-        drive.files().update(fileId=fid, media_body=media).execute()
-        log.info(f"finanzas_data.json actualizado en appDataFolder (id={fid})")
+    if existing_id:
+        drive.files().update(fileId=existing_id, media_body=media).execute()
+        log.info(f"'{name}' actualizado (id={existing_id})")
     else:
-        meta = {"name": DATA_FILE, "parents": ["appDataFolder"]}
+        meta = {"name": name, "parents": [folder_id]}
         drive.files().create(body=meta, media_body=media, fields="id").execute()
-        log.info("finanzas_data.json creado en appDataFolder")
+        log.info(f"'{name}' creado en carpeta {folder_id}")
+
+# ── finanzas_data.json ──────────────────────────────────────────────────────
+
+def read_drive_data(creds: Credentials) -> dict:
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    fid = find_file_in_folder(drive, DATA_FILE, root_id)
+    if not fid:
+        log.info(f"No se encontró {DATA_FILE} en Finanzas/")
+        return {}
+    log.info(f"Leyendo {DATA_FILE} con id={fid}")
+    return read_json_file(drive, fid)
+
+def write_drive_data(creds: Credentials, data: dict):
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    fid = find_file_in_folder(drive, DATA_FILE, root_id)
+    write_json_file(drive, DATA_FILE, root_id, data, fid)
+
+# ── servicios.json ──────────────────────────────────────────────────────────
+
+def read_servicios(creds: Credentials) -> list:
+    """Devuelve la lista de servicios perpetuos del usuario."""
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    fid = find_file_in_folder(drive, SERVICIOS_FILE, root_id)
+    if not fid:
+        return []
+    return read_json_file(drive, fid)
+
+def write_servicios(creds: Credentials, servicios: list):
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    fid = find_file_in_folder(drive, SERVICIOS_FILE, root_id)
+    write_json_file(drive, SERVICIOS_FILE, root_id, servicios, fid)
+
+# ── Subir comprobante ───────────────────────────────────────────────────────
+
+def upload_comprobante(creds: Credentials, servicio_name: str,
+                       filename: str, content: bytes, mime: str) -> str:
+    """Sube un archivo a Finanzas/Comprobantes/<servicio>/. Devuelve el file id."""
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    srv_folder_id = get_comprobantes_folder(drive, root_id, servicio_name)
+    buf = io.BytesIO(content)
+    media = MediaIoBaseUpload(buf, mimetype=mime)
+    meta = {"name": filename, "parents": [srv_folder_id]}
+    f = drive.files().create(body=meta, media_body=media, fields="id,webViewLink").execute()
+    log.info(f"Comprobante subido: {filename} (id={f['id']})")
+    return f["id"]
+
+def list_comprobantes(creds: Credentials, servicio_name: str, mes_prefix: str) -> list:
+    """
+    Lista comprobantes de un servicio para un mes dado.
+    mes_prefix ej: '2026-10'  → busca archivos que empiecen con ese prefijo.
+    Devuelve lista de {id, name}.
+    """
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    srv_folder_id = get_comprobantes_folder(drive, root_id, servicio_name)
+    q = f"'{srv_folder_id}' in parents and name contains '{mes_prefix}' and trashed=false"
+    res = drive.files().list(q=q, spaces="drive",
+                             fields="files(id,name)", orderBy="name").execute()
+    return res.get("files", [])
+
+def download_file(creds: Credentials, file_id: str) -> bytes:
+    drive = get_drive(creds)
+    buf = io.BytesIO()
+    request = drive.files().get_media(fileId=file_id)
+    dl = MediaIoBaseDownload(buf, request)
+    done = False
+    while not done:
+        _, done = dl.next_chunk()
+    buf.seek(0)
+    return buf.read()
+
+# ── Async wrappers ──────────────────────────────────────────────────────────
+
+def _run_in_executor(fn, *args):
+    loop = asyncio.get_event_loop()
+    return loop.run_in_executor(_drive_executor, fn, *args)
+
+async def read_drive_data_async(creds: Credentials) -> dict:
+    return await _run_in_executor(read_drive_data, creds)
+
+async def write_drive_data_async(creds: Credentials, data: dict):
+    return await _run_in_executor(write_drive_data, creds, data)
+
+async def read_servicios_async(creds: Credentials) -> list:
+    return await _run_in_executor(read_servicios, creds)
+
+async def write_servicios_async(creds: Credentials, servicios: list):
+    return await _run_in_executor(write_servicios, creds, servicios)
+
+async def upload_comprobante_async(creds, servicio_name, filename, content, mime) -> str:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _drive_executor, upload_comprobante,
+        creds, servicio_name, filename, content, mime
+    )
+
+async def list_comprobantes_async(creds, servicio_name, mes_prefix) -> list:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _drive_executor, list_comprobantes,
+        creds, servicio_name, mes_prefix
+    )
+
+async def download_file_async(creds, file_id) -> bytes:
+    return await _run_in_executor(download_file, creds, file_id)
 
 # ──────────────────────────────────────────────
 # Parsear montos (acepta 1500 / 1.500 / 1,500 / 1.500,00 / 1,500.00)
@@ -457,7 +582,7 @@ async def oauth_callback(request: web.Request) -> web.Response:
         "token": creds.token,
         "refresh_token": creds.refresh_token or old_refresh_token,
         "name": name,
-        "scope_version": 3,  # drive.appdata (v3)
+        "scope_version": 4,  # drive.file en raíz visible (v4)
     }
     save_users(users_db)
 
@@ -479,19 +604,19 @@ async def oauth_callback(request: web.Request) -> web.Response:
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_chat.id)
     if uid in users_db:
-        # Verificar si el token tiene el scope correcto (drive.appdata v3)
+        # Verificar si el token tiene el scope correcto (drive.file v4)
         creds_data = users_db[uid]
-        tiene_scope_correcto = creds_data.get("scope_version", 1) >= 3
+        tiene_scope_correcto = creds_data.get("scope_version", 1) >= 4
         if tiene_scope_correcto:
             await update.message.reply_text(
                 f"👋 ¡Ya estás conectado, {users_db[uid]['name']}!\n"
                 "Usá /ayuda para ver los comandos disponibles."
             )
             return
-        # Tiene token viejo → reconectar
+        # Tiene token viejo → reconectar para obtener drive.file
         await update.message.reply_text(
-            "🔄 Necesito reconectar tu cuenta para sincronizar correctamente con la app web.\n\n"
-            "Es un paso único, solo tenés que autorizar de nuevo:"
+            "🔄 Actualicé la forma en que guardo tus datos (ahora en Drive visible 📂).\n\n"
+            "Necesito que autorices de nuevo una sola vez para continuar:"
         )
     url = make_oauth_url(update.effective_chat.id)
     await update.message.reply_text(
@@ -516,20 +641,25 @@ async def cmd_desconectar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     texto = (
         "📋 *Comandos disponibles:*\n\n"
-        "/gasto `MONTO CATEGORÍA descripción`\n"
-        "  _Ej: /gasto 4500 super verdulería_\n\n"
+        "📂 *Servicios y comprobantes:*\n"
+        "/servicios — Crear, ver y eliminar servicios\n"
+        "/comprobante — Subir comprobante a un servicio\n"
+        "/vercomprobantes — Ver y descargar comprobantes\n\n"
+        "💰 *Registrar datos:*\n"
+        "/gasto `MONTO NOMBRE_SERVICIO`\n"
+        "  _Ej: /gasto 15000 luz_\n"
         "/ingreso `MONTO descripción`\n"
-        "  _Ej: /ingreso 200000 freelance_\n\n"
+        "  _Ej: /ingreso 200000 freelance_\n"
         "/tarjeta `NOMBRE MONTO`\n"
         "  _Ej: /tarjeta visa 150000_\n\n"
-        "/resumen — Resumen del mes actual\n"
-        "/historial — Ver resumen de otro mes\n"
+        "📊 *Resúmenes:*\n"
+        "/resumen — Mes actual\n"
+        "/historial — Elegir un mes\n"
         "/comparar — Balance vs mes anterior\n\n"
-        "📂 *Categorías para /gasto:*\n"
-        "`super` `luz` `gas` `expensas` `alquiler`\n"
-        "`internet` `celular` `obra` `extra`\n\n"
-        "💡 Los montos aceptan coma o número entero.\n"
-        "  _Ej: 4500 / 4,500 / 4.500_"
+        "📌 *Categorías especiales para /gasto:*\n"
+        "`super` o `mercado` → Super/Mercado\n"
+        "`extra` → Gasto extra\n\n"
+        "💡 Montos: `4500` / `4,500` / `4.500`"
     )
     await update.message.reply_text(texto, parse_mode="Markdown")
 
@@ -543,7 +673,8 @@ async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if len(args) < 2:
         await update.message.reply_text(
             "Uso: /gasto MONTO CATEGORÍA descripción\n"
-            "Ej: /gasto 4500 super mercado chino"
+            "Ej: /gasto 4500 super mercado chino\n"
+            "Para ver tus servicios disponibles: /servicios"
         )
         return
 
@@ -551,47 +682,59 @@ async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if monto is None:
         msg = "No pude leer el monto."
         if "." in args[0]:
-            msg += "\n💡 Si usaste punto como separador de miles (ej: 4.500), también funciona. Si era decimal, usá coma (ej: 4,50)."
+            msg += "\n💡 Si usaste punto como separador de miles (ej: 4.500), también funciona."
         await update.message.reply_text(msg)
         return
 
     cat_raw = args[1].lower()
-    categoria = CATEGORIAS.get(cat_raw)
-    if not categoria:
-        await update.message.reply_text(
-            f"Categoría '{cat_raw}' no reconocida.\n"
-            "Usá: super, luz, gas, expensas, alquiler, internet, celular, obra, extra"
-        )
-        return
-
-    desc = " ".join(args[2:]) if len(args) > 2 else categoria
+    desc = " ".join(args[2:]) if len(args) > 2 else args[1]
 
     try:
         creds = creds_from_dict(users_db[uid])
         data = await read_drive_data_async(creds)
+        servicios = await read_servicios_async(creds)
         key = current_key()
         mes = data.setdefault(key, {})
 
-        if categoria == "Super/Mercado":
+        # Buscar si coincide con un servicio del usuario (por nombre aproximado)
+        srv_match = next(
+            (s for s in servicios if s["name"].lower() == cat_raw or
+             s["name"].lower().startswith(cat_raw)),
+            None
+        )
+
+        if CATEGORIAS_FIJAS.get(cat_raw) == "Super/Mercado":
             mes.setdefault("otrosGastos", {})
             mes["otrosGastos"]["super"] = mes["otrosGastos"].get("super", 0) + monto
-        elif categoria == "Gasto Extra":
+            etiqueta = "Super/Mercado"
+        elif CATEGORIAS_FIJAS.get(cat_raw) == "Gasto Extra":
             mes.setdefault("otrosGastos", {})
             extras = mes["otrosGastos"].setdefault("extras", [])
             extras.append({"desc": desc, "monto": monto})
-        elif categoria in ["Luz","Gas","Expensas","Alquiler","Internet","Celular","Obra Social"]:
-            key_srv = {
-                "Luz": "luz", "Gas": "gas", "Expensas": "expensas",
-                "Alquiler": "alquiler", "Internet": "internet",
-                "Celular": "celular", "Obra Social": "obraSocial"
-            }[categoria]
-            mes.setdefault("servicios", {})[key_srv] = monto
+            etiqueta = desc
+        elif srv_match:
+            # Guardar monto del servicio para este mes
+            srv_list = mes.setdefault("servicios", [])
+            existing = next((s for s in srv_list if s.get("id") == srv_match["id"]), None)
+            if existing:
+                existing["amt"] = monto
+            else:
+                srv_list.append({"id": srv_match["id"], "name": srv_match["name"], "amt": monto})
+            etiqueta = srv_match["name"]
+        else:
+            nombres_srv = ", ".join(s["name"] for s in servicios) if servicios else "(ninguno creado)"
+            await update.message.reply_text(
+                f"❓ Categoría '{args[1]}' no reconocida.\n\n"
+                f"Categorías fijas: `super`, `extra`\n"
+                f"Tus servicios: {nombres_srv}\n\n"
+                f"Para crear servicios: /servicios"
+            , parse_mode="Markdown")
+            return
 
         await write_drive_data_async(creds, data)
         await update.message.reply_text(
             f"✅ Gasto guardado:\n"
-            f"  📌 {categoria}: *$ {fmt(monto)}*\n"
-            f"  📝 {desc}\n"
+            f"  📌 {etiqueta}: *$ {fmt(monto)}*\n"
             f"  📅 {key_label(key)}",
             parse_mode="Markdown"
         )
@@ -779,23 +922,15 @@ async def cmd_comparar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(texto, parse_mode="Markdown")
             return
 
-        def totales(key):
-            mes = data.get(key, {})
-            ingresos = mes.get("ingresos", {})
-            sueldo = ingresos.get("sueldo", 0) or 0
-            extras_ing = ingresos.get("extras", []) or []
-            ti = sueldo + sum(e.get("monto", 0) for e in extras_ing)
-
-            servicios = mes.get("servicios", {})
-            ts = sum(servicios.get(s, 0) or 0 for s in
-                     ["luz","gas","expensas","alquiler","internet","celular","obraSocial"])
-
-            tarjetas = mes.get("tarjetas", []) or []
-            tt = sum(t.get("pagado", 0) or 0 for t in tarjetas)
-
-            otros = mes.get("otrosGastos", {})
-            to_ = (otros.get("super", 0) or 0) + sum(e.get("monto",0) for e in otros.get("extras",[]) or [])
-            tg = ts + tt + to_
+        def totales(k):
+            raw = data.get(k)
+            if not raw:
+                return 0, 0, 0
+            mes = parse_mes(raw)
+            if not mes:
+                return 0, 0, 0
+            ti = mes["sueldo"] + sum(e["monto"] for e in mes["extras_ing"])
+            tg = mes["total_srv"] + mes["total_tar_ars"] + mes["super_val"] + sum(e["monto"] for e in mes["extras_gas"])
             return ti, tg, ti - tg
 
         ti_a, tg_a, disp_a = totales(key_act)
@@ -817,6 +952,352 @@ async def cmd_comparar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log.exception(e)
         await update.message.reply_text("❌ Error al leer los datos.")
+
+# ──────────────────────────────────────────────
+# /servicios — gestión de servicios perpetuos
+# ──────────────────────────────────────────────
+import uuid as _uuid
+
+def _servicios_keyboard(servicios: list, mode: str = "menu") -> InlineKeyboardMarkup:
+    """Teclado inline para listar servicios. mode='menu'|'eliminar'|'comprobante'"""
+    botones = []
+    for s in servicios:
+        sid = s["id"]
+        nombre = s["name"]
+        if mode == "eliminar":
+            botones.append([InlineKeyboardButton(f"🗑 {nombre}", callback_data=f"srv_del:{sid}")])
+        elif mode == "comprobante":
+            botones.append([InlineKeyboardButton(f"📎 {nombre}", callback_data=f"srv_comp:{sid}:{nombre}")])
+        else:
+            botones.append([InlineKeyboardButton(nombre, callback_data=f"srv_info:{sid}")])
+    if mode == "menu":
+        botones.append([
+            InlineKeyboardButton("➕ Nuevo servicio", callback_data="srv_nuevo"),
+            InlineKeyboardButton("🗑 Eliminar",        callback_data="srv_modo_del"),
+        ])
+    else:
+        botones.append([InlineKeyboardButton("⬅️ Cancelar", callback_data="srv_cancelar")])
+    return InlineKeyboardMarkup(botones)
+
+async def cmd_servicios(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_chat.id)
+    if uid not in users_db:
+        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+        return
+    try:
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        if not servicios:
+            texto = "📋 *Tus servicios*\n\nNo tenés servicios creados todavía."
+        else:
+            lineas = ["📋 *Tus servicios*\n"]
+            for s in servicios:
+                lineas.append(f"  • {s['name']}")
+            texto = "\n".join(lineas)
+        await update.message.reply_text(
+            texto,
+            parse_mode="Markdown",
+            reply_markup=_servicios_keyboard(servicios)
+        )
+    except Exception as e:
+        log.exception(e)
+        await update.message.reply_text("❌ Error al leer servicios.")
+
+async def callback_servicios(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    uid = str(query.from_user.id)
+    if uid not in users_db:
+        await query.edit_message_text("Primero conectá tu cuenta con /start.")
+        return
+
+    data_cb = query.data
+
+    # ── Crear nuevo ──
+    if data_cb == "srv_nuevo":
+        ctx.user_data["esperando_srv_nombre"] = True
+        await query.edit_message_text(
+            "✏️ Escribí el nombre del nuevo servicio (ej: *Luz*, *Gas*, *Netflix*):",
+            parse_mode="Markdown"
+        )
+        return
+
+    # ── Modo eliminar ──
+    if data_cb == "srv_modo_del":
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        if not servicios:
+            await query.edit_message_text("No tenés servicios para eliminar.")
+            return
+        await query.edit_message_text(
+            "🗑 *Seleccioná el servicio a eliminar:*",
+            parse_mode="Markdown",
+            reply_markup=_servicios_keyboard(servicios, mode="eliminar")
+        )
+        return
+
+    # ── Confirmar eliminación ──
+    if data_cb.startswith("srv_del:"):
+        sid = data_cb.split(":", 1)[1]
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        nombre = next((s["name"] for s in servicios if s["id"] == sid), sid)
+        servicios = [s for s in servicios if s["id"] != sid]
+        await write_servicios_async(creds, servicios)
+        await query.edit_message_text(
+            f"✅ Servicio *{nombre}* eliminado.\n"
+            f"_(La carpeta de comprobantes en Drive no se borra automáticamente.)_",
+            parse_mode="Markdown"
+        )
+        return
+
+    # ── Ver info de un servicio ──
+    if data_cb.startswith("srv_info:"):
+        sid = data_cb.split(":", 1)[1]
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        srv = next((s for s in servicios if s["id"] == sid), None)
+        if not srv:
+            await query.edit_message_text("Servicio no encontrado.")
+            return
+        # Ver monto del mes actual si existe
+        fin_data = await read_drive_data_async(creds)
+        key = current_key()
+        mes_data = fin_data.get(key, {})
+        if isinstance(mes_data, str):
+            try: mes_data = json.loads(mes_data)
+            except: mes_data = {}
+        srv_mes = next(
+            (s for s in mes_data.get("servicios", []) if s.get("id") == sid), None
+        )
+        monto_txt = f"$ {fmt(srv_mes['amt'])}" if srv_mes else "Sin cargar este mes"
+        await query.edit_message_text(
+            f"🏠 *{srv['name']}*\n\n"
+            f"💰 {key_label(key)}: {monto_txt}\n\n"
+            f"Usá `/gasto MONTO {srv['name'].lower()}` para actualizar.",
+            parse_mode="Markdown"
+        )
+        return
+
+    # ── Cancelar ──
+    if data_cb == "srv_cancelar":
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        await query.edit_message_text(
+            "📋 *Tus servicios*",
+            parse_mode="Markdown",
+            reply_markup=_servicios_keyboard(servicios)
+        )
+        return
+
+async def msg_nuevo_servicio(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Recibe el nombre del nuevo servicio cuando el usuario está en modo creación."""
+    if not ctx.user_data.get("esperando_srv_nombre"):
+        return  # No es nuestro mensaje
+    uid = str(update.effective_chat.id)
+    nombre = update.message.text.strip()
+    if not nombre or len(nombre) > 50:
+        await update.message.reply_text("El nombre debe tener entre 1 y 50 caracteres.")
+        return
+    ctx.user_data.pop("esperando_srv_nombre", None)
+    try:
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        # Verificar duplicado
+        if any(s["name"].lower() == nombre.lower() for s in servicios):
+            await update.message.reply_text(f"Ya existe un servicio llamado *{nombre}*.", parse_mode="Markdown")
+            return
+        nuevo = {"id": str(_uuid.uuid4()), "name": nombre}
+        servicios.append(nuevo)
+        await write_servicios_async(creds, servicios)
+        await update.message.reply_text(
+            f"✅ Servicio *{nombre}* creado.\n\n"
+            f"Ahora podés cargar su monto con:\n`/gasto MONTO {nombre.lower()}`",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        log.exception(e)
+        await update.message.reply_text("❌ Error al crear el servicio.")
+
+# ──────────────────────────────────────────────
+# /comprobante — subir y bajar comprobantes
+# ──────────────────────────────────────────────
+
+async def cmd_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Muestra los servicios para elegir a cuál subir comprobante."""
+    uid = str(update.effective_chat.id)
+    if uid not in users_db:
+        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+        return
+    try:
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        if not servicios:
+            await update.message.reply_text(
+                "No tenés servicios creados.\nCreá uno con /servicios primero."
+            )
+            return
+        await update.message.reply_text(
+            "📎 *¿A qué servicio querés subir el comprobante?*",
+            parse_mode="Markdown",
+            reply_markup=_servicios_keyboard(servicios, mode="comprobante")
+        )
+    except Exception as e:
+        log.exception(e)
+        await update.message.reply_text("❌ Error al leer servicios.")
+
+async def callback_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """El usuario eligió el servicio; queda esperando el archivo."""
+    query = update.callback_query
+    await query.answer()
+    uid = str(query.from_user.id)
+    # data: srv_comp:<id>:<nombre>
+    parts = query.data.split(":", 2)
+    sid, nombre = parts[1], parts[2]
+    ctx.user_data["comp_srv_id"]   = sid
+    ctx.user_data["comp_srv_name"] = nombre
+    ctx.user_data["esperando_comp"] = True
+    n = now_ar()
+    ctx.user_data["comp_mes_prefix"] = f"{n.year}-{n.month:02d}"
+    await query.edit_message_text(
+        f"📎 *{nombre}* — enviame el archivo (PDF, foto JPG/PNG).\n\n"
+        f"Se guardará en Drive → Finanzas/Comprobantes/{nombre}/",
+        parse_mode="Markdown"
+    )
+
+async def msg_recibir_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Recibe el archivo/foto y lo sube a Drive."""
+    if not ctx.user_data.get("esperando_comp"):
+        return
+    uid = str(update.effective_chat.id)
+    nombre_srv = ctx.user_data["comp_srv_name"]
+    mes_prefix  = ctx.user_data["comp_mes_prefix"]
+
+    # Determinar qué llegó
+    file_obj = None
+    mime = "application/octet-stream"
+    ext  = "bin"
+
+    if update.message.document:
+        doc = update.message.document
+        mime = doc.mime_type or mime
+        ext  = doc.file_name.rsplit(".", 1)[-1] if doc.file_name and "." in doc.file_name else "pdf"
+        file_obj = doc
+    elif update.message.photo:
+        file_obj = update.message.photo[-1]  # mayor resolución
+        mime = "image/jpeg"
+        ext  = "jpg"
+    else:
+        await update.message.reply_text(
+            "Por favor enviá un archivo PDF o una foto (JPG/PNG)."
+        )
+        return
+
+    ctx.user_data.pop("esperando_comp", None)
+
+    try:
+        tg_file = await file_obj.get_file()
+        content = bytes(await tg_file.download_as_bytearray())
+
+        # Nombre del archivo: 2026-10_<timestamp>.<ext>
+        ts = now_ar().strftime("%H%M%S")
+        filename = f"{mes_prefix}_{ts}.{ext}"
+
+        creds = creds_from_dict(users_db[uid])
+        file_id = await upload_comprobante_async(
+            creds, nombre_srv, filename, content, mime
+        )
+        await update.message.reply_text(
+            f"✅ Comprobante guardado en Drive:\n"
+            f"  📁 Finanzas/Comprobantes/{nombre_srv}/\n"
+            f"  📄 {filename}",
+        )
+    except Exception as e:
+        log.exception(e)
+        await update.message.reply_text("❌ Error al subir el comprobante a Drive.")
+
+async def cmd_ver_comprobantes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Muestra los servicios para elegir de cuál ver comprobantes del mes actual."""
+    uid = str(update.effective_chat.id)
+    if uid not in users_db:
+        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+        return
+    try:
+        creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        if not servicios:
+            await update.message.reply_text("No tenés servicios creados.")
+            return
+
+        botones = []
+        n = now_ar()
+        mes_prefix = f"{n.year}-{n.month:02d}"
+        for s in servicios:
+            botones.append([InlineKeyboardButton(
+                s["name"],
+                callback_data=f"ver_comp:{s['id']}:{s['name']}:{mes_prefix}"
+            )])
+        await update.message.reply_text(
+            f"📂 *Comprobantes del mes*\n¿De qué servicio?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(botones)
+        )
+    except Exception as e:
+        log.exception(e)
+        await update.message.reply_text("❌ Error al leer servicios.")
+
+async def callback_ver_comprobantes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Lista los comprobantes del servicio elegido y permite descargarlos."""
+    query = update.callback_query
+    await query.answer()
+    uid = str(query.from_user.id)
+    # data: ver_comp:<id>:<nombre>:<mes_prefix>
+    parts = query.data.split(":", 3)
+    sid, nombre, mes_prefix = parts[1], parts[2], parts[3]
+
+    try:
+        creds = creds_from_dict(users_db[uid])
+        archivos = await list_comprobantes_async(creds, nombre, mes_prefix)
+
+        if not archivos:
+            await query.edit_message_text(
+                f"📭 No hay comprobantes de *{nombre}* para {mes_prefix}.",
+                parse_mode="Markdown"
+            )
+            return
+
+        botones = [
+            [InlineKeyboardButton(f"⬇️ {a['name']}", callback_data=f"dl_comp:{a['id']}:{a['name']}")]
+            for a in archivos
+        ]
+        await query.edit_message_text(
+            f"📂 *Comprobantes — {nombre} ({mes_prefix})*\n\nElegí cuál descargar:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(botones)
+        )
+    except Exception as e:
+        log.exception(e)
+        await query.edit_message_text("❌ Error al listar comprobantes.")
+
+async def callback_dl_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Descarga y envía el comprobante al usuario."""
+    query = update.callback_query
+    await query.answer("Descargando…")
+    uid = str(query.from_user.id)
+    parts = query.data.split(":", 2)
+    file_id, filename = parts[1], parts[2]
+
+    try:
+        creds = creds_from_dict(users_db[uid])
+        content = await download_file_async(creds, file_id)
+        await query.message.reply_document(
+            document=io.BytesIO(content),
+            filename=filename,
+            caption=f"📄 {filename}"
+        )
+    except Exception as e:
+        log.exception(e)
+        await query.message.reply_text("❌ Error al descargar el comprobante.")
 
 # ──────────────────────────────────────────────
 # Notificaciones automáticas
@@ -874,15 +1355,18 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────────
 async def post_init(app: Application):
     await app.bot.set_my_commands([
-        BotCommand("start",        "Conectar con Google Drive"),
-        BotCommand("desconectar",  "Desconectar cuenta de Google"),
-        BotCommand("gasto",    "Registrar un gasto"),
-        BotCommand("ingreso",  "Registrar un ingreso"),
-        BotCommand("tarjeta",  "Registrar pago de tarjeta"),
-        BotCommand("resumen",  "Ver resumen del mes actual"),
-        BotCommand("historial","Ver resumen de otro mes"),
-        BotCommand("comparar", "Comparar con mes anterior"),
-        BotCommand("ayuda",    "Ver todos los comandos"),
+        BotCommand("start",            "Conectar con Google Drive"),
+        BotCommand("desconectar",      "Desconectar cuenta de Google"),
+        BotCommand("servicios",        "Gestionar servicios (luz, gas, etc.)"),
+        BotCommand("comprobante",      "Subir comprobante de un servicio"),
+        BotCommand("vercomprobantes",  "Ver/descargar comprobantes"),
+        BotCommand("gasto",            "Registrar un gasto o servicio"),
+        BotCommand("ingreso",          "Registrar un ingreso"),
+        BotCommand("tarjeta",          "Registrar pago de tarjeta"),
+        BotCommand("resumen",          "Ver resumen del mes actual"),
+        BotCommand("historial",        "Ver resumen de otro mes"),
+        BotCommand("comparar",         "Comparar con mes anterior"),
+        BotCommand("ayuda",            "Ver todos los comandos"),
     ])
 
 # ──────────────────────────────────────────────
@@ -900,16 +1384,34 @@ def main():
     )
 
     # Handlers
-    application.add_handler(CommandHandler("start",       cmd_start))
-    application.add_handler(CommandHandler("desconectar", cmd_desconectar))
-    application.add_handler(CommandHandler("ayuda",       cmd_ayuda))
-    application.add_handler(CommandHandler("gasto",    cmd_gasto))
-    application.add_handler(CommandHandler("ingreso",  cmd_ingreso))
-    application.add_handler(CommandHandler("tarjeta",  cmd_tarjeta))
-    application.add_handler(CommandHandler("resumen",  cmd_resumen))
-    application.add_handler(CommandHandler("historial",cmd_historial))
-    application.add_handler(CommandHandler("comparar", cmd_comparar))
-    application.add_handler(CallbackQueryHandler(callback_historial, pattern=r"^hist:"))
+    application.add_handler(CommandHandler("start",           cmd_start))
+    application.add_handler(CommandHandler("desconectar",     cmd_desconectar))
+    application.add_handler(CommandHandler("ayuda",           cmd_ayuda))
+    application.add_handler(CommandHandler("gasto",           cmd_gasto))
+    application.add_handler(CommandHandler("ingreso",         cmd_ingreso))
+    application.add_handler(CommandHandler("tarjeta",         cmd_tarjeta))
+    application.add_handler(CommandHandler("resumen",         cmd_resumen))
+    application.add_handler(CommandHandler("historial",       cmd_historial))
+    application.add_handler(CommandHandler("comparar",        cmd_comparar))
+    application.add_handler(CommandHandler("servicios",       cmd_servicios))
+    application.add_handler(CommandHandler("comprobante",     cmd_comprobante))
+    application.add_handler(CommandHandler("vercomprobantes", cmd_ver_comprobantes))
+
+    # Callbacks inline — orden importante: los más específicos primero
+    application.add_handler(CallbackQueryHandler(callback_historial,       pattern=r"^hist:"))
+    application.add_handler(CallbackQueryHandler(callback_comprobante,     pattern=r"^srv_comp:"))
+    application.add_handler(CallbackQueryHandler(callback_ver_comprobantes,pattern=r"^ver_comp:"))
+    application.add_handler(CallbackQueryHandler(callback_dl_comprobante,  pattern=r"^dl_comp:"))
+    application.add_handler(CallbackQueryHandler(callback_servicios,       pattern=r"^srv_"))
+
+    # Mensajes de texto/archivos para flujos conversacionales
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND, msg_nuevo_servicio
+    ))
+    application.add_handler(MessageHandler(
+        (filters.Document.ALL | filters.PHOTO) & ~filters.COMMAND,
+        msg_recibir_comprobante
+    ))
 
     # Job queue — notificaciones automáticas (hora Argentina = UTC-3)
     jq = application.job_queue
