@@ -149,10 +149,13 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .full{grid-column:1/-1}
 
 /* ── RESPONSIVE BREAKPOINTS ── */
+/* Base: tarjetas en 1 columna (mobile) */
+.tarjetas-grid{display:grid;grid-template-columns:1fr;gap:1rem;align-items:start}
+.tarjetas-grid>button{grid-column:1/-1}
+
 /* Tablet+: 2-col tarjetas, 4-col métricas */
 @media(min-width:640px){
-  .tarjetas-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start}
-  .tarjetas-grid>button{grid-column:1/-1}
+  .tarjetas-grid{grid-template-columns:repeat(2,1fr);gap:1.25rem}
   .metric-grid{grid-template-columns:repeat(4,1fr)}
 }
 /* Desktop: resumen en 2 columnas */
@@ -162,6 +165,10 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   .resumen-layout>.metric-grid{grid-column:1/-1}
   .sections2{gap:1.25rem}
   .metric-grid{grid-template-columns:repeat(4,1fr)}
+}
+/* Wide desktop: 3 tarjetas si el viewport lo permite */
+@media(min-width:1400px){
+  .tarjetas-grid{grid-template-columns:repeat(3,1fr);gap:1.5rem}
 }
 
 /* ── FORM INPUTS ── */
@@ -240,7 +247,6 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .tcard-unit{display:flex;flex-direction:column}
 .tcard-unit .tcard-plastic-wrap{border-bottom-left-radius:0;border-bottom-right-radius:0}
 .tcard-unit .tcard-with-plastic{border-radius:0 0 14px 14px;margin-bottom:0}
-.tarjetas-grid>button{grid-column:1/-1}
 .tcard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:6px}
 .tcard-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;color:var(--ink)}
 .tcard-rename{background:transparent;border:none;color:var(--ink3);font-size:12px;text-align:right;max-width:120px;padding:2px 6px;border-radius:6px}
