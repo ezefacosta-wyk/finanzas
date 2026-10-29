@@ -158,10 +158,12 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   align-items:start;
   width:100%;
   box-sizing:border-box;
-  overflow:hidden;
 }
 .tarjetas-grid>button{grid-column:1/-1}
-.tcard-unit{min-width:0;overflow:hidden}
+.tcard-unit{min-width:0}
+/* Las columnas internas de cada tarjeta pueden achicarse por debajo del ancho natural de los inputs */
+.cp-fields-grid,.tfields{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+.cp-field,.tfield,.add-row input{min-width:0}
 
 /* Tablet+: 4-col métricas */
 @media(min-width:640px){
@@ -416,6 +418,11 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-dist-track{flex:2;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden}
 .dd-dist-fill{height:100%;border-radius:3px}
 .dd-left-col{display:flex;flex-direction:column;gap:11px}
+.dd-menu-btn{background:transparent;border:1px solid rgba(255,255,255,0.10);border-radius:10px;color:#e2e6f0;font-size:15px;font-weight:800;letter-spacing:-.3px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
+.dd-menu-btn:hover{background:rgba(255,255,255,0.06)}
+.dd-menu-icon{display:flex;flex-direction:column;gap:4px;width:16px}
+.dd-menu-icon span{display:block;height:2px;border-radius:1px;background:#8892aa}
+.dd-menu-icon span:nth-child(2){width:70%}
 .dd-exit-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#8892aa;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
 .dd-exit-btn:hover{background:rgba(255,255,255,0.09);color:#e2e6f0}
 </style>
@@ -512,7 +519,9 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 <!-- ── DESKTOP DASHBOARD ── -->
 <div id="desktopDashboard">
   <div class="dd-topbar">
-    <div class="dd-logo"><div class="dd-logo-dot"></div>Finanzas</div>
+    <button class="dd-menu-btn" onclick="toggleDrawer()" title="Menú">
+      <span class="dd-menu-icon"><span></span><span></span><span></span></span>Finanzas
+    </button>
     <nav class="dd-nav" id="dd-nav">
       <span class="dd-nav-link active">Resumen</span>
     </nav>
@@ -526,10 +535,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span id="dd-sync-text">Sincronizado</span>
       </div>
-      <button class="dd-exit-btn" onclick="exitDesktop('resumen')" title="Ver versión mobile">
-        <i class="ti ti-device-mobile"></i> Versión completa
-      </button>
-      <button class="dd-avatar-btn" onclick="exitDesktop('resumen')">
+      <button class="dd-avatar-btn" onclick="toggleDrawer()" title="Menú">
         <div class="dd-avatar" id="dd-avatar">EF</div>
       </button>
     </div>
@@ -963,16 +969,13 @@ function navTo(name){
   showTab(name);closeDrawer();
 }
 function showTab(name){
-  // En desktop: Resumen vuelve al dashboard
-  if(isDesktop()&&name==='resumen'){
-    showApp();
-    return;
-  }
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.dnav-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   const di=document.getElementById('dnav-'+name);if(di)di.classList.add('active');
   const lbl=document.getElementById('currentTabLabel');if(lbl)lbl.textContent=TAB_LABELS[name]||name;
+  // En desktop: Resumen vuelve al dashboard
+  if(isDesktop()&&name==='resumen'&&!document.getElementById('desktopDashboard').classList.contains('visible'))showApp();
 }
 function syncDrawerUser(){const n=document.getElementById('driveName'),a=document.getElementById('driveAvatar'),s=document.getElementById('syncInfo');const dn=document.getElementById('drawerName'),da=document.getElementById('drawerAvatar'),ds=document.getElementById('drawerSync');if(n&&dn)dn.textContent=n.textContent||'—';if(a&&da)da.textContent=a.textContent||'?';if(s&&ds)ds.textContent=s.textContent||'';}
 function totalIngresos(s){const st=s||state;return nv(st.sueldo)+st.extras.reduce((a,e)=>a+e.amt,0);}
