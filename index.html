@@ -418,15 +418,6 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-left-col{display:flex;flex-direction:column;gap:11px}
 .dd-exit-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#8892aa;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
 .dd-exit-btn:hover{background:rgba(255,255,255,0.09);color:#e2e6f0}
-/* Panel lateral desktop */
-#ddSidePanel{position:fixed;top:0;right:-480px;bottom:0;width:460px;background:#0f1520;border-left:1px solid rgba(255,255,255,0.09);z-index:200;display:flex;flex-direction:column;transition:right .28s cubic-bezier(.4,0,.2,1);box-shadow:-8px 0 40px rgba(0,0,0,.5)}
-#ddSidePanel.open{right:0}
-#ddSidePanel .ddsp-head{height:54px;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid rgba(255,255,255,0.07);gap:12px;flex-shrink:0}
-#ddSidePanel .ddsp-title{font-size:14px;font-weight:700;color:#e2e6f0;flex:1}
-#ddSidePanel .ddsp-close{width:30px;height:30px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;background:rgba(255,255,255,0.04);color:#8892aa;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-#ddSidePanel .ddsp-body{flex:1;overflow-y:auto;padding:16px 20px}
-#ddSideOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:199;display:none}
-#ddSideOverlay.open{display:block}
 </style>
 </head>
 <body>
@@ -523,10 +514,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   <div class="dd-topbar">
     <div class="dd-logo"><div class="dd-logo-dot"></div>Finanzas</div>
     <nav class="dd-nav" id="dd-nav">
-      <span class="dd-nav-link active" onclick="ddNavTo('resumen')">Resumen</span>
-      <span class="dd-nav-link" onclick="ddNavTo('tarjetas')">Tarjetas</span>
-      <span class="dd-nav-link" onclick="ddNavTo('servicios')">Servicios</span>
-      <span class="dd-nav-link" onclick="ddNavTo('gastos')">Otros gastos</span>
+      <span class="dd-nav-link active">Resumen</span>
     </nav>
     <div class="dd-topbar-right">
       <div class="dd-month-nav">
@@ -589,15 +577,6 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
       </div>
     </div>
   </main>
-</div>
-<!-- Panel lateral desktop (Tarjetas / Servicios / Gastos) -->
-<div id="ddSideOverlay" onclick="closeDDPanel()"></div>
-<div id="ddSidePanel">
-  <div class="ddsp-head">
-    <span class="ddsp-title" id="ddsp-title">Tarjetas</span>
-    <button class="ddsp-close" onclick="closeDDPanel()"><i class="ti ti-x"></i></button>
-  </div>
-  <div class="ddsp-body" id="ddsp-body"></div>
 </div>
 
 <div id="appContent" style="display:none">
@@ -736,55 +715,6 @@ function exitDesktop(section){
   document.getElementById('appContent').style.display='block';
   renderAll();
   if(section&&section!=='resumen')navTo(section);
-}
-function ddNavTo(section){
-  if(section==='resumen'){closeDDPanel();setDDNavActive('resumen');return;}
-  setDDNavActive(section);
-  // Mostrar el appContent con el view correcto encima del dashboard (como panel)
-  const ac=document.getElementById('appContent');
-  const dp=document.getElementById('ddSidePanel');
-  const overlay=document.getElementById('ddSideOverlay');
-  const titles={'tarjetas':'Tarjetas de crédito','servicios':'Servicios','gastos':'Otros gastos','ingresos':'Ingresos'};
-  document.getElementById('ddsp-title').textContent=titles[section]||section;
-  // El body del panel apunta al view real
-  const body=document.getElementById('ddsp-body');
-  const viewMap={'tarjetas':'view-tarjetas','servicios':'view-servicios','gastos':'view-gastos','ingresos':'view-ingresos'};
-  // Mover el view al panel (sin clonar, para mantener los event handlers)
-  const view=document.getElementById(viewMap[section]);
-  if(view){
-    body.innerHTML='';
-    body.appendChild(view);
-    view.classList.add('active');
-  }
-  // Renderizar el contenido
-  if(section==='tarjetas')renderTarjetas();
-  else if(section==='servicios')renderServicios();
-  else if(section==='gastos')renderGastosExtra();
-  else if(section==='ingresos')renderExtras();
-  overlay.classList.add('open');
-  dp.classList.add('open');
-}
-function closeDDPanel(){
-  const body=document.getElementById('ddsp-body');
-  const viewMap={'tarjetas':'view-tarjetas','servicios':'view-servicios','gastos':'view-gastos','ingresos':'view-ingresos'};
-  // Devolver los views a appContent
-  ['tarjetas','servicios','gastos','ingresos'].forEach(s=>{
-    const v=document.getElementById(viewMap[s]);
-    if(v&&v.parentNode===body){
-      v.classList.remove('active');
-      document.getElementById('appContent').appendChild(v);
-    }
-  });
-  document.getElementById('ddSideOverlay').classList.remove('open');
-  document.getElementById('ddSidePanel').classList.remove('open');
-  setDDNavActive('resumen');
-  renderDashboard();
-}
-function setDDNavActive(section){
-  document.querySelectorAll('#dd-nav .dd-nav-link').forEach((el,i)=>{
-    const secs=['resumen','tarjetas','servicios','gastos'];
-    el.classList.toggle('active',secs[i]===section);
-  });
 }
 const MESES_DD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 function renderDashboard(){
