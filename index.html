@@ -701,11 +701,14 @@ function showApp(){
     document.getElementById('driveBar').style.display='none';
     document.getElementById('appContent').style.display='none';
     document.getElementById('desktopDashboard').classList.add('visible');
+    // Ocultar el header mobile (menú + selector de mes) en desktop
+    document.querySelector('.header').style.display='none';
     renderDashboard();
   } else {
     document.getElementById('driveBar').style.display='flex';
     document.getElementById('appContent').style.display='block';
     document.getElementById('desktopDashboard').classList.remove('visible');
+    document.querySelector('.header').style.display='flex';
     renderAll();
   }
 }
@@ -713,6 +716,7 @@ function exitDesktop(section){
   document.getElementById('desktopDashboard').classList.remove('visible');
   document.getElementById('driveBar').style.display='flex';
   document.getElementById('appContent').style.display='block';
+  document.querySelector('.header').style.display='flex';
   renderAll();
   if(section&&section!=='resumen')navTo(section);
 }
@@ -949,8 +953,21 @@ if(accessToken){setSyncInfo('<i class="ti ti-loader"></i> Cargando mes...','spin
 const TAB_LABELS={resumen:'Resumen',ingresos:'Ingresos',tarjetas:'Tarjetas',servicios:'Servicios',gastos:'Otros gastos'};
 function toggleDrawer(){const d=document.getElementById('navDrawer'),o=document.getElementById('drawerOverlay'),b=document.getElementById('menuBtn');const open=d.classList.toggle('open');o.classList.toggle('open',open);b.classList.toggle('open',open);document.body.style.overflow=open?'hidden':'';}
 function closeDrawer(){const d=document.getElementById('navDrawer'),o=document.getElementById('drawerOverlay'),b=document.getElementById('menuBtn');d.classList.remove('open');o.classList.remove('open');b.classList.remove('open');document.body.style.overflow='';}
-function navTo(name){showTab(name);closeDrawer();}
+function navTo(name){
+  // En desktop: si estamos en el dashboard, salir a mobile primero
+  if(isDesktop()&&document.getElementById('desktopDashboard').classList.contains('visible')){
+    exitDesktop(name);
+    closeDrawer();
+    return;
+  }
+  showTab(name);closeDrawer();
+}
 function showTab(name){
+  // En desktop: Resumen vuelve al dashboard
+  if(isDesktop()&&name==='resumen'){
+    showApp();
+    return;
+  }
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.dnav-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
