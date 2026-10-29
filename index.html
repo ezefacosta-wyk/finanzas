@@ -21,12 +21,13 @@
   --page-bg:#0f1117;
 }
 html,body{min-height:100vh;background:var(--bg)}
-body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.5}
-.container{max-width:100%;margin:0 auto;padding:1rem 1rem 4rem}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.5;overflow-x:hidden}
+.container{width:100%;max-width:100%;margin:0 auto;padding:1rem 1rem 4rem}
 @media(min-width:600px){.container{padding:1.25rem 1.5rem 4rem}}
-@media(min-width:900px){.container{padding:1.5rem 2rem 4rem;max-width:960px}}
-@media(min-width:1200px){.container{max-width:1280px;padding:1.75rem 2.5rem 4rem}}
-@media(min-width:1600px){.container{max-width:1520px;padding:2rem 3rem 4rem}}
+@media(min-width:900px){.container{padding:1.5rem 2rem 4rem}}
+@media(min-width:1200px){.container{padding:1.75rem 2.5rem 4rem}}
+@media(min-width:1600px){.container{padding:2rem 3rem 4rem}}
 h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 
 /* ── TOPBAR ── */
@@ -149,13 +150,19 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .full{grid-column:1/-1}
 
 /* ── RESPONSIVE BREAKPOINTS ── */
-/* Base: tarjetas en 1 columna (mobile) */
-.tarjetas-grid{display:grid;grid-template-columns:1fr;gap:1rem;align-items:start}
+/* Grid de tarjetas: fluido, mínimo 300px por tarjeta */
+.tarjetas-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));
+  gap:1rem;
+  align-items:start;
+  width:100%;
+}
 .tarjetas-grid>button{grid-column:1/-1}
 
-/* Tablet+: 2-col tarjetas, 4-col métricas */
+/* Tablet+: 4-col métricas */
 @media(min-width:640px){
-  .tarjetas-grid{grid-template-columns:repeat(2,1fr);gap:1.25rem}
+  .tarjetas-grid{gap:1.25rem}
   .metric-grid{grid-template-columns:repeat(4,1fr)}
 }
 /* Desktop: resumen en 2 columnas */
@@ -166,9 +173,8 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   .sections2{gap:1.25rem}
   .metric-grid{grid-template-columns:repeat(4,1fr)}
 }
-/* Wide desktop: 3 tarjetas si el viewport lo permite */
 @media(min-width:1400px){
-  .tarjetas-grid{grid-template-columns:repeat(3,1fr);gap:1.5rem}
+  .tarjetas-grid{gap:1.5rem}
 }
 
 /* ── FORM INPUTS ── */
@@ -341,6 +347,74 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .signin-card{text-align:center;padding:3rem 1.5rem}
 .signin-card h2{font-size:22px;font-weight:700;margin-bottom:8px;color:var(--ink);letter-spacing:-0.02em}
 .signin-card p{color:var(--ink3);font-size:13px;margin-bottom:1.75rem;line-height:1.7}
+
+/* ── DESKTOP DASHBOARD ── */
+#desktopDashboard{display:none;flex-direction:column;height:100vh;overflow:hidden;background:#0a0e1a}
+#desktopDashboard.visible{display:flex}
+.dd-topbar{height:54px;background:#0f1520;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;padding:0 28px;gap:14px;flex-shrink:0}
+.dd-logo{font-size:15px;font-weight:800;color:#e2e6f0;letter-spacing:-.3px;display:flex;align-items:center;gap:7px}
+.dd-logo-dot{width:8px;height:8px;border-radius:50%;background:#6c8fff}
+.dd-nav{display:flex;gap:2px;margin-left:18px}
+.dd-nav-link{padding:5px 11px;border-radius:8px;font-size:13px;font-weight:600;color:#8892aa;text-decoration:none;cursor:pointer;transition:background .15s}
+.dd-nav-link.active{background:rgba(108,143,255,0.12);color:#e2e6f0;font-weight:700}
+.dd-topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.dd-month-nav{display:flex;align-items:center;gap:6px}
+.dd-month-btn{width:26px;height:26px;border:1px solid rgba(255,255,255,0.12);border-radius:7px;background:rgba(255,255,255,0.04);color:#8892aa;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.dd-month-label{font-size:13px;font-weight:700;color:#e2e6f0;min-width:110px;text-align:center}
+.dd-sync-pill{display:flex;align-items:center;gap:5px;border:1px solid rgba(52,211,153,0.25);background:rgba(52,211,153,0.08);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;color:#34d399}
+.dd-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6c8fff,#8ba4ff);color:#fff;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.dd-avatar-btn{background:none;border:none;cursor:pointer;padding:0}
+.dd-body{flex:1;overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column;gap:18px}
+.dd-sec-lbl{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5a6580;margin-bottom:9px}
+.dd-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.dd-kpi{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:15px 17px}
+.dd-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.dd-kpi-lbl{font-size:10px;font-weight:700;color:#5a6580;text-transform:uppercase;letter-spacing:.06em}
+.dd-kpi-chip{font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
+.dd-kpi-val{font-size:25px;font-weight:800;line-height:1;letter-spacing:-.5px;margin-bottom:3px}
+.dd-kpi-sub{font-size:11px;color:#8892aa}
+.dd-kpi-div{height:3px;border-radius:2px;margin-top:11px}
+.dd-two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:13px}
+.dd-panel{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;overflow:hidden}
+.dd-panel-hdr{padding:13px 17px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between}
+.dd-panel-title{font-size:12px;font-weight:700;color:#e2e6f0}
+.dd-panel-amt{font-size:12px;font-weight:700;color:#8892aa}
+.dd-panel-body{padding:4px 17px 13px}
+.dd-card-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.dd-card-row:last-of-type{border-bottom:none}
+.dd-card-ico{width:40px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;letter-spacing:.5px;flex-shrink:0}
+.dd-card-ico.visa{background:linear-gradient(135deg,#1a56db,#2563eb);color:#fff}
+.dd-card-ico.mc{background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff}
+.dd-card-info{flex:1;min-width:0}
+.dd-card-name{font-size:12px;font-weight:600;color:#c8d0e0}
+.dd-card-meta{font-size:10px;color:#5a6580;margin-top:1px}
+.dd-card-right{text-align:right;flex-shrink:0}
+.dd-card-total{font-size:13px;font-weight:800;color:#e2e6f0}
+.dd-badge{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:2px}
+.dd-svc-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.dd-svc-row:last-child{border-bottom:none}
+.dd-svc-bar{width:4px;height:28px;border-radius:2px;flex-shrink:0}
+.dd-svc-info{flex:1}
+.dd-svc-name{font-size:12px;font-weight:600;color:#c8d0e0}
+.dd-svc-sub{font-size:10px;color:#5a6580}
+.dd-svc-amt{font-size:12px;font-weight:700;color:#e2e6f0}
+.dd-right-col{display:flex;flex-direction:column;gap:12px}
+.dd-right-panel{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:17px}
+.dd-chart-bars{display:flex;align-items:flex-end;gap:7px;height:72px}
+.dd-bar-g{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.dd-bar-inner{flex:1;display:flex;align-items:flex-end;width:100%}
+.dd-bar{width:100%;border-radius:4px 4px 0 0}
+.dd-bar-lbl{font-size:9px;color:#5a6580;font-weight:600}
+.dd-bar-lbl.cur{color:#6c8fff;font-weight:800}
+.dd-dist-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.dd-dist-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.dd-dist-name{flex:1;font-size:11px;color:#8892aa}
+.dd-dist-pct{font-size:11px;font-weight:700;color:#e2e6f0;width:28px;text-align:right;flex-shrink:0}
+.dd-dist-track{flex:2;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden}
+.dd-dist-fill{height:100%;border-radius:3px}
+.dd-left-col{display:flex;flex-direction:column;gap:11px}
+.dd-exit-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#8892aa;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
+.dd-exit-btn:hover{background:rgba(255,255,255,0.09);color:#e2e6f0}
 </style>
 </head>
 <body>
@@ -430,6 +504,79 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
     Continuar con Google
   </button>
   <p style="font-size:11px;color:var(--ink3);margin-top:1rem;margin-bottom:0">Tus datos se guardan en tu propio Google Drive. Nadie más tiene acceso.</p>
+</div>
+
+<!-- ── DESKTOP DASHBOARD ── -->
+<div id="desktopDashboard">
+  <div class="dd-topbar">
+    <div class="dd-logo"><div class="dd-logo-dot"></div>Finanzas</div>
+    <nav class="dd-nav">
+      <span class="dd-nav-link active">Resumen</span>
+      <span class="dd-nav-link" onclick="exitDesktop('tarjetas')">Tarjetas</span>
+      <span class="dd-nav-link" onclick="exitDesktop('servicios')">Servicios</span>
+      <span class="dd-nav-link" onclick="exitDesktop('gastos')">Otros gastos</span>
+    </nav>
+    <div class="dd-topbar-right">
+      <div class="dd-month-nav">
+        <button class="dd-month-btn" onclick="changeMonth(-1);renderDashboard()">‹</button>
+        <span class="dd-month-label" id="dd-month-label">—</span>
+        <button class="dd-month-btn" onclick="changeMonth(1);renderDashboard()">›</button>
+      </div>
+      <div class="dd-sync-pill" id="dd-sync-pill">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="dd-sync-text">Sincronizado</span>
+      </div>
+      <button class="dd-exit-btn" onclick="exitDesktop('resumen')" title="Ver versión mobile">
+        <i class="ti ti-device-mobile"></i> Versión completa
+      </button>
+      <button class="dd-avatar-btn" onclick="exitDesktop('resumen')">
+        <div class="dd-avatar" id="dd-avatar">EF</div>
+      </button>
+    </div>
+  </div>
+  <main class="dd-body">
+    <!-- KPI -->
+    <div>
+      <div class="dd-sec-lbl">Este mes</div>
+      <div class="dd-kpi-strip" id="dd-kpi-strip">
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Ingresos</span></div><div class="dd-kpi-val" id="dd-v-ing" style="color:#34d399">—</div><div class="dd-kpi-sub" id="dd-s-ing"></div><div class="dd-kpi-div" style="background:#34d399"></div></div>
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Tarjetas</span><span class="dd-kpi-chip" id="dd-chip-tc" style="background:rgba(248,113,113,0.12);color:#f87171"></span></div><div class="dd-kpi-val" id="dd-v-tc" style="color:#f87171">—</div><div class="dd-kpi-sub" id="dd-s-tc"></div><div class="dd-kpi-div" style="background:#f87171"></div></div>
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Servicios</span><span class="dd-kpi-chip" id="dd-chip-sv" style="background:rgba(251,191,36,0.10);color:#fbbf24"></span></div><div class="dd-kpi-val" id="dd-v-sv" style="color:#fbbf24">—</div><div class="dd-kpi-sub" id="dd-s-sv"></div><div class="dd-kpi-div" style="background:#fbbf24"></div></div>
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Disponible</span><span class="dd-kpi-chip" id="dd-chip-disp" style="background:rgba(108,143,255,0.12);color:#6c8fff"></span></div><div class="dd-kpi-val" id="dd-v-disp" style="color:#6c8fff">—</div><div class="dd-kpi-sub" id="dd-s-disp"></div><div class="dd-kpi-div" style="background:#6c8fff"></div></div>
+      </div>
+    </div>
+    <!-- TWO-COL -->
+    <div class="dd-two-col">
+      <div class="dd-left-col">
+        <!-- Tarjetas -->
+        <div class="dd-panel">
+          <div class="dd-panel-hdr"><span class="dd-panel-title">Tarjetas de crédito</span><span class="dd-panel-amt" id="dd-tc-total-lbl"></span></div>
+          <div class="dd-panel-body" id="dd-tarjetas-list"></div>
+        </div>
+        <!-- Servicios -->
+        <div class="dd-panel">
+          <div class="dd-panel-hdr"><span class="dd-panel-title">Servicios</span><span class="dd-panel-amt" id="dd-svc-total-lbl"></span></div>
+          <div class="dd-panel-body" id="dd-svc-list"></div>
+        </div>
+      </div>
+      <!-- Right: chart + distribución -->
+      <div class="dd-right-panel">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px">
+          <div>
+            <div class="dd-sec-lbl" style="margin-bottom:2px">Disponible por mes</div>
+            <div style="font-size:21px;font-weight:800;color:#6c8fff" id="dd-chart-title">—</div>
+            <div style="font-size:11px;color:#8892aa;margin-top:2px" id="dd-chart-sub"></div>
+          </div>
+          <span id="dd-chart-chip" style="font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px"></span>
+        </div>
+        <div class="dd-chart-bars" id="dd-chart-bars"></div>
+        <div style="margin-top:15px;padding-top:13px;border-top:1px solid rgba(255,255,255,0.07)">
+          <div class="dd-sec-lbl" style="margin-bottom:9px">Distribución <span id="dd-dist-month"></span></div>
+          <div id="dd-dist-rows"></div>
+        </div>
+      </div>
+    </div>
+  </main>
 </div>
 
 <div id="appContent" style="display:none">
@@ -547,7 +694,107 @@ function avatarColor(n){const c=['#2c5f9e','#1a7a4a','#8a5f10','#6b3fa0','#c0392
 function signIn(){const cl=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async(r)=>{if(r.error){setSyncInfo('Error al conectar','err');return;}accessToken=r.access_token;localStorage.setItem('fin_gtoken',accessToken);await fetchUserInfo();await loadFromDrive();showApp();}});cl.requestAccessToken();}
 function signOut(){if(accessToken)google.accounts.oauth2.revoke(accessToken);accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;serviciosPerpetuas=[];localStorage.removeItem('fin_gtoken');localStorage.removeItem('fin_gdrive_fileid');localStorage.removeItem('fin_gdrive_srv_id');localStorage.removeItem('fin_gdrive_root_id');document.getElementById('driveBar').style.display='none';document.getElementById('appContent').style.display='none';document.getElementById('loginScreen').style.display='block';}
 async function fetchUserInfo(){try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)return;const u=await r.json();const name=u.name||u.email||'Usuario';document.getElementById('driveName').textContent=name;const av=document.getElementById('driveAvatar');av.textContent=getInitials(name);av.style.background=avatarColor(name);syncDrawerUser();}catch(e){}}
-function showApp(){document.getElementById('loginScreen').style.display='none';document.getElementById('driveBar').style.display='flex';document.getElementById('appContent').style.display='block';renderAll();}
+function isDesktop(){return window.innerWidth>=1024;}
+function showApp(){
+  document.getElementById('loginScreen').style.display='none';
+  if(isDesktop()){
+    document.getElementById('driveBar').style.display='none';
+    document.getElementById('appContent').style.display='none';
+    document.getElementById('desktopDashboard').classList.add('visible');
+    renderDashboard();
+  } else {
+    document.getElementById('driveBar').style.display='flex';
+    document.getElementById('appContent').style.display='block';
+    document.getElementById('desktopDashboard').classList.remove('visible');
+    renderAll();
+  }
+}
+function exitDesktop(section){
+  document.getElementById('desktopDashboard').classList.remove('visible');
+  document.getElementById('driveBar').style.display='flex';
+  document.getElementById('appContent').style.display='block';
+  renderAll();
+  if(section&&section!=='resumen')navTo(section);
+}
+const MESES_DD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function renderDashboard(){
+  if(!document.getElementById('desktopDashboard').classList.contains('visible'))return;
+  const ing=totalIngresos();
+  const tcTotal=state.tarjetas.reduce((a,t)=>a+nv(t.total),0);
+  const svTotal=state.servicios.reduce((a,s)=>a+nv(s.amt),0);
+  const superAmt=parseFloat(document.getElementById('super-amt')?.value)||nv(state.superAmt);
+  const gastosExtra=state.gastosExtra?state.gastosExtra.reduce((a,g)=>a+nv(g.amt),0):0;
+  const reserva=ing*0.10;
+  const disp=Math.max(0,ing-tcTotal-svTotal-superAmt-gastosExtra-reserva);
+  const pctTc=ing>0?Math.round(tcTotal/ing*100):0;
+  const pctSv=ing>0?Math.round(svTotal/ing*100):0;
+  const pctDisp=ing>0?Math.round(disp/ing*100):0;
+  const pctRes=10;
+  // month label
+  document.getElementById('dd-month-label').textContent=MESES_DD[curMonth]+' '+curYear;
+  document.getElementById('dd-dist-month').textContent=MESES_DD[curMonth].toLowerCase();
+  // avatar
+  const av=document.getElementById('dd-avatar');
+  const srcAv=document.getElementById('driveAvatar');
+  if(srcAv)av.textContent=srcAv.textContent;
+  // KPI
+  document.getElementById('dd-v-ing').textContent=fmt(ing);
+  document.getElementById('dd-s-ing').textContent='Sueldo'+(state.extras&&state.extras.length?' + extras':'');
+  document.getElementById('dd-chip-tc').textContent=pctTc+'%';
+  document.getElementById('dd-v-tc').textContent=fmt(tcTotal);
+  document.getElementById('dd-s-tc').textContent=state.tarjetas.length+' tarjeta'+(state.tarjetas.length!==1?'s':'');
+  document.getElementById('dd-chip-sv').textContent=pctSv+'%';
+  document.getElementById('dd-v-sv').textContent=fmt(svTotal);
+  document.getElementById('dd-s-sv').textContent=state.servicios.filter(s=>nv(s.amt)>0).length+' activos';
+  document.getElementById('dd-chip-disp').textContent=pctDisp+'%';
+  document.getElementById('dd-v-disp').textContent=fmt(disp);
+  document.getElementById('dd-s-disp').textContent='Tras reserva 10%';
+  // sync pill
+  const syncSrc=document.getElementById('syncInfo');
+  const pill=document.getElementById('dd-sync-pill');
+  const pillTxt=document.getElementById('dd-sync-text');
+  if(syncSrc){const t=syncSrc.textContent.trim();pillTxt.textContent=t||'Sincronizado';pill.style.borderColor=t.includes('Error')||t.includes('exp')?'rgba(248,113,113,.3)':'rgba(52,211,153,.25)';pill.style.color=t.includes('Error')||t.includes('exp')?'#f87171':'#34d399';}
+  // tarjetas list
+  const tcList=document.getElementById('dd-tarjetas-list');
+  document.getElementById('dd-tc-total-lbl').textContent=tcTotal>0?fmt(tcTotal)+' total':'Sin tarjetas';
+  if(!state.tarjetas.length){tcList.innerHTML='<div style="padding:12px 0;font-size:12px;color:#5a6580">No hay tarjetas cargadas</div>';} else {
+    tcList.innerHTML=state.tarjetas.map(t=>{
+      const total=nv(t.total),pagado=nv(t.pagado)+((t.extraPagos||[]).reduce((s,p)=>s+p.amt,0));
+      const saldada=total>0&&pagado>=total;
+      const sinPagar=total>0&&pagado===0;
+      const brand=t.name.toLowerCase().includes('visa')?'visa':'mc';
+      const brandLbl=brand==='visa'?'VISA':'MC';
+      const badge=total===0?'':'saldada'===''?'':(saldada?`<span class="dd-badge" style="background:rgba(52,211,153,.12);color:#34d399">✓ Saldada</span>`:sinPagar?`<span class="dd-badge" style="background:rgba(248,113,113,.12);color:#f87171">⚠ Sin pagar</span>`:`<span class="dd-badge" style="background:rgba(251,191,36,.10);color:#fbbf24">Parcial</span>`);
+      const vence=t.vencimiento?'Vence '+t.vencimiento:'';
+      const minLabel=nv(t.minimo)>0?'mín '+fmt(nv(t.minimo)):'';
+      const meta=[vence,minLabel].filter(Boolean).join(' · ');
+      return `<div class="dd-card-row"><div class="dd-card-ico ${brand}">${brandLbl}</div><div class="dd-card-info"><div class="dd-card-name">${t.name}</div><div class="dd-card-meta">${meta||'Sin datos de vencimiento'}</div></div><div class="dd-card-right"><div class="dd-card-total">${total>0?fmt(total):'$0'}</div>${badge}</div></div>`;
+    }).join('');
+  }
+  // servicios list
+  const svList=document.getElementById('dd-svc-list');
+  document.getElementById('dd-svc-total-lbl').textContent=svTotal>0?fmt(svTotal)+' / mes':'Sin datos';
+  const svColors=['#6c8fff','#fbbf24','#34d399','#f87171','#5dcaa5','#a78bfa'];
+  if(!state.servicios.length){svList.innerHTML='<div style="padding:12px 0;font-size:12px;color:#5a6580">No hay servicios cargados</div>';}
+  else{svList.innerHTML=state.servicios.map((s,i)=>`<div class="dd-svc-row"><div class="dd-svc-bar" style="background:${svColors[i%svColors.length]}"></div><div class="dd-svc-info"><div class="dd-svc-name">${s.name}</div><div class="dd-svc-sub">mensual</div></div><div class="dd-svc-amt">${nv(s.amt)>0?fmt(nv(s.amt)):'<span style="font-size:10px;color:#fbbf24">sin monto</span>'}</div></div>`).join('');}
+  // chart (últimos 6 meses disponible)
+  const months=[];for(let i=5;i>=0;i--){let m=curMonth-i,y=curYear;while(m<0){m+=12;y--;}months.push({m,y,lbl:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m]});}
+  const dispVals=months.map(({m,y})=>{if(m===curMonth&&y===curYear)return disp;try{const s=JSON.parse(localStorage.getItem('fin4_'+y+'_'+m));if(!s)return 0;const si=totalIngresosFrom(s),st=s.tarjetas.reduce((a,t)=>a+nv(t.total),0),ssv=s.servicios.reduce((a,sv)=>a+nv(sv.amt),0);return Math.max(0,si-st-ssv-si*.10);}catch(e){return 0;}});
+  const maxV=Math.max(...dispVals,1);
+  document.getElementById('dd-chart-title').textContent=fmt(disp);
+  const allDisp=dispVals.filter(v=>v>0);
+  const avg=allDisp.length?allDisp.reduce((a,b)=>a+b,0)/allDisp.length:0;
+  document.getElementById('dd-chart-sub').textContent=MESES_DD[curMonth].slice(0,3)+' · promedio: '+fmt(avg);
+  const chip=document.getElementById('dd-chart-chip');
+  if(avg>0&&disp<avg*.9){chip.textContent='↓ Bajo prom.';chip.style.background='rgba(248,113,113,.12)';chip.style.color='#f87171';}
+  else if(avg>0&&disp>avg*1.05){chip.textContent='↑ Sobre prom.';chip.style.background='rgba(52,211,153,.12)';chip.style.color='#34d399';}
+  else{chip.textContent='≈ En línea';chip.style.background='rgba(108,143,255,.12)';chip.style.color='#6c8fff';}
+  document.getElementById('dd-chart-bars').innerHTML=months.map(({m,y,lbl},i)=>{const v=dispVals[i];const pct=Math.round(v/maxV*100)||2;const isCur=m===curMonth&&y===curYear;return`<div class="dd-bar-g"><div class="dd-bar-inner"><div class="dd-bar" style="height:${pct}%;background:${isCur?'#6c8fff':'rgba(108,143,255,0.22)'}"></div></div><div class="dd-bar-lbl ${isCur?'cur':''}">${lbl}</div></div>`;}).join('');
+  // distribución
+  const distItems=[{lbl:'Tarjetas',pct:pctTc,color:'#f87171'},{lbl:'Disponible',pct:pctDisp,color:'#6c8fff'},{lbl:'Reserva',pct:pctRes,color:'#34d399'},{lbl:'Servicios',pct:pctSv,color:'#fbbf24'}];
+  document.getElementById('dd-dist-rows').innerHTML=distItems.map(d=>`<div class="dd-dist-row"><div class="dd-dist-dot" style="background:${d.color}"></div><div class="dd-dist-name">${d.lbl}</div><div class="dd-dist-pct">${d.pct}%</div><div class="dd-dist-track"><div class="dd-dist-fill" style="width:${Math.min(d.pct,100)}%;background:${d.color}"></div></div></div>`).join('');
+}
+function totalIngresosFrom(s){if(!s)return 0;const base=nv(s.sueldo);const extras=(s.extras||[]).reduce((a,e)=>a+nv(e.amt),0);return base+extras;}
 async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{...opts.headers,Authorization:'Bearer '+accessToken}});if(r.status===401){setSyncInfo('Sesión expirada','err');return null;}return r;}
 
 /* ── Drive folder/file helpers ── */
@@ -716,7 +963,7 @@ function calcTarjetasPagadas(s){const st=s||state;return st.tarjetas.reduce((a,t
 function totalPagadoTarjetas(){return calcTarjetasPagadas();}
 function getCategorias(s){const sa=(s===state||!s)?(parseFloat(document.getElementById('super-amt')?.value)||0):nv(s.superAmt);const st=s||state;return [{key:'ingresos',label:'Ingresos totales',icon:'ti-wallet',val:totalIngresos(s),ingreso:true},{key:'servicios',label:'Servicios fijos',icon:'ti-building',val:st.servicios.reduce((a,sv)=>a+sv.amt,0)},{key:'super',label:'Super / Mercado',icon:'ti-shopping-cart',val:sa},{key:'gastos_extra',label:'Gastos extra',icon:'ti-tag',val:st.gastosExtra.reduce((a,g)=>a+g.amt,0)},{key:'tarjetas',label:'Tarjetas pagadas',icon:'ti-credit-card',val:calcTarjetasPagadas(s)}];}
 function renderComparacion(){const {y,m}=prevMonthYM();const prev=getState(y,m);const prevLabel=MESES[m]+' '+y,curLabel=MESES[curMonth]+' '+curYear;document.getElementById('comp-month-labels').innerHTML=`<span class="comp-month-label prev">${prevLabel}</span><span class="comp-sep">→</span><span class="comp-month-label current">${curLabel}</span>`;if(!prev){document.getElementById('comp-content').innerHTML=`<div class="no-data-prev"><i class="ti ti-database-off"></i>No hay datos de ${prevLabel} para comparar</div>`;return;}const catCur=getCategorias(state),catPrev=getCategorias(prev);const maxVal=Math.max(...catCur.map(c=>c.val),...catPrev.map(c=>c.val),1);let tc=0,tp=0;catCur.forEach(c=>{if(!c.ingreso)tc+=c.val;});catPrev.forEach(c=>{if(!c.ingreso)tp+=c.val;});const rows=catCur.map((cur,i)=>{const prv=catPrev[i],diff=cur.val-prv.val,pct=prv.val>0?Math.round((diff/prv.val)*100):0;const eb=cur.ingreso?diff>0:diff<0,em=cur.ingreso?diff<0:diff>0;const dc=diff===0?'same':eb?'down':'up',di=diff===0?'ti-minus':eb?'ti-arrow-down':'ti-arrow-up';const ad='$'+Math.abs(Math.round(diff)).toLocaleString('es-AR');const dl=diff===0?'Sin cambio':(eb?'−':'+')+ad+(pct!==0?' ('+Math.abs(pct)+'%)':'');const bw=Math.round((Math.abs(diff)/maxVal)*100),bc=em?'var(--danger)':eb?'var(--success)':'var(--accent)';return `<tr><td class="cat"><i class="ti ${cur.icon}"></i>${cur.label}</td><td class="num">${fmt(prv.val)}</td><td class="num">${fmt(cur.val)}</td><td class="diff"><span class="diff-pill ${dc}"><i class="ti ${di}"></i>${dl}</span><span class="diff-bar-wrap"><span class="diff-bar-fill" style="width:${bw}%;background:${bc}"></span></span></td></tr>`;});const td=tc-tp,tpct=tp>0?Math.round((td/tp)*100):0,tb=td<0;const tdc=td===0?'same':tb?'down':'up',tdi=td===0?'ti-minus':tb?'ti-arrow-down':'ti-arrow-up';const atd='$'+Math.abs(Math.round(td)).toLocaleString('es-AR');document.getElementById('comp-content').innerHTML=`<table class="comp-table"><thead><tr><th style="text-align:left">Categoría</th><th>${prevLabel}</th><th>${curLabel}</th><th>Diferencia</th></tr></thead><tbody>${rows.join('')}<tr class="comp-total-row"><td class="cat"><i class="ti ti-sigma"></i> Total gastos</td><td class="num">${fmt(tp)}</td><td class="num">${fmt(tc)}</td><td class="diff"><span class="diff-pill ${tdc}"><i class="ti ${tdi}"></i>${td===0?'Sin cambio':(tb?'−':'+')+atd+(tpct!==0?' ('+Math.abs(tpct)+'%)':'')}</span></td></tr></tbody></table>`;}
-function renderAll(){document.getElementById('monthLabel').textContent=MESES[curMonth]+' '+curYear;document.getElementById('sueldo').value=state.sueldo||'';document.getElementById('super-amt').value=state.superAmt||'';renderExtras();renderTarjetas();renderServicios();renderGastosExtra();recalc();updateOfflineBadge();updateDrawerBadges();}
+function renderAll(){if(document.getElementById('desktopDashboard').classList.contains('visible')){renderDashboard();return;}document.getElementById('monthLabel').textContent=MESES[curMonth]+' '+curYear;document.getElementById('sueldo').value=state.sueldo||'';document.getElementById('super-amt').value=state.superAmt||'';renderExtras();renderTarjetas();renderServicios();renderGastosExtra();recalc();updateOfflineBadge();updateDrawerBadges();}
 function renderExtras(){document.getElementById('extra-list').innerHTML=state.extras.map((e,i)=>`<div class="item-row"><span class="item-name">${e.name}</span><span class="item-amt">${fmt(e.amt)}</span><button class="btn-icon" onclick="removeExtra(${i})"><i class="ti ti-x"></i></button></div>`).join('');}
 function addExtra(){const nm=document.getElementById('extra-name').value.trim(),a=parseFloat(document.getElementById('extra-amt').value)||0;if(!nm||!a)return;state.extras.push({name:nm,amt:a});document.getElementById('extra-name').value='';document.getElementById('extra-amt').value='';save();renderExtras();recalc();}
 function removeExtra(i){confirmDelete('¿Eliminar ingreso extra?',()=>{state.extras.splice(i,1);save();renderExtras();recalc();});}
