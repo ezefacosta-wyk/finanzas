@@ -21,6 +21,10 @@ En el panel de Railway → tu proyecto → Variables, agregá:
 | `GOOGLE_CLIENT_SECRET` | El secret de tu OAuth client en Google Cloud |
 | `REDIRECT_URI` | `https://TU-APP.railway.app/oauth/callback` (lo sabés una vez que Railway te da la URL) |
 | `PORT` | `8080` |
+| `ALLOWED_CHAT_IDS` | Tu ID de chat de Telegram (varios separados por coma). Vacío = el bot no atiende a nadie. Para saber tu ID, escribile `/start` al bot: si no estás autorizado te lo responde. |
+| `WEBHOOK_SECRET` | Opcional. Secreto que Telegram envía en cada webhook; si no se define, se deriva del `BOT_TOKEN`. |
+
+> ⚠ El repo es público: nunca pongas tokens ni secretos en archivos del repo (`.env.example` es sólo una plantilla).
 
 ### 4. Agregar Redirect URI en Google Cloud
 1. Google Cloud Console → tu proyecto → APIs & Servicios → Credenciales

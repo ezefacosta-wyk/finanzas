@@ -3,7 +3,7 @@ Bot de Telegram — Mis Finanzas
 Stack: python-telegram-bot 20.x, Google Drive API (OAuth por usuario)
 """
 
-import os, json, re, io, logging, asyncio
+import os, json, re, io, logging, asyncio, hmac, hashlib, time
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor
@@ -13,7 +13,8 @@ from telegram import (
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    CallbackQueryHandler, ContextTypes, filters
+    CallbackQueryHandler, ContextTypes, filters,
+    TypeHandler, ApplicationHandlerStop
 )
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
@@ -30,6 +31,20 @@ CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
 REDIRECT_URI  = os.environ["REDIRECT_URI"]          # https://tu-app.railway.app/oauth/callback
 PORT          = int(os.environ.get("PORT", 8080))
 TZ = ZoneInfo("America/Buenos_Aires")
+
+# ── Seguridad ──
+# Chats autorizados a usar el bot (IDs separados por coma). Si está vacío, nadie puede usarlo:
+# el bot sólo responde con el ID de chat de quien le escribe, para poder configurarlo.
+ALLOWED_CHAT_IDS = {x.strip() for x in os.environ.get("ALLOWED_CHAT_IDS", "").split(",") if x.strip()}
+# Secreto que Telegram manda en cada webhook (cabecera X-Telegram-Bot-Api-Secret-Token).
+# Si no se define, se deriva del BOT_TOKEN: cambia solo al revocar el token.
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET") or hmac.new(
+    BOT_TOKEN.encode(), b"finanzas-webhook-secret", hashlib.sha256).hexdigest()
+WEBHOOK_PATH = "/telegram/webhook"   # ya no lleva el token en la URL
+OAUTH_STATE_TTL = 15 * 60            # los links de /start vencen a los 15 minutos
+
+def is_allowed(chat_id) -> bool:
+    return str(chat_id) in ALLOWED_CHAT_IDS
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
@@ -526,9 +541,11 @@ def make_oauth_url(chat_id: int) -> str:
         include_granted_scopes="true",
         prompt="consent",
     )
-    # Persistir el state en disco para sobrevivir reinicios
-    states = load_states()
-    states[state] = chat_id
+    # Persistir el state en disco para sobrevivir reinicios; descartar los vencidos
+    now = time.time()
+    states = {k: v for k, v in load_states().items()
+              if isinstance(v, dict) and now - v.get("ts", 0) < OAUTH_STATE_TTL}
+    states[state] = {"chat_id": chat_id, "ts": now}
     save_states(states)
     return url
 
@@ -539,9 +556,14 @@ async def oauth_callback(request: web.Request) -> web.Response:
 
     # Leer state desde disco (sobrevive reinicios del proceso)
     states = load_states()
-    chat_id = states.pop(state, None)
-    if chat_id:
+    entry = states.pop(state, None) if state else None
+    if entry is not None:
         save_states(states)
+    chat_id = None
+    if isinstance(entry, dict) and time.time() - entry.get("ts", 0) < OAUTH_STATE_TTL:
+        chat_id = entry.get("chat_id")
+    if chat_id is not None and not is_allowed(chat_id):
+        chat_id = None
 
     if not chat_id or not code:
         return web.Response(
@@ -1308,7 +1330,7 @@ async def notif_cierre(ctx: ContextTypes.DEFAULT_TYPE):
     if n.day != 28:
         return
     label = key_label(current_key())
-    for uid in list(users_db.keys()):
+    for uid in [u for u in users_db if is_allowed(u)]:
         try:
             await ctx.bot.send_message(
                 chat_id=int(uid),
@@ -1332,7 +1354,7 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
     ant_key = prev_key()
     nuevo_label = key_label(current_key())
 
-    for uid in list(users_db.keys()):
+    for uid in [u for u in users_db if is_allowed(u)]:
         try:
             creds = creds_from_dict(users_db[uid])
             data = await read_drive_data_async(creds)
@@ -1370,6 +1392,46 @@ async def post_init(app: Application):
     ])
 
 # ──────────────────────────────────────────────
+# Filtro de usuarios
+# ──────────────────────────────────────────────
+async def auth_gate(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Corta cualquier update de un chat que no esté en ALLOWED_CHAT_IDS."""
+    chat = update.effective_chat
+    if chat is not None and is_allowed(chat.id):
+        return
+    log.warning("Update rechazado de chat no autorizado: %s", chat.id if chat else None)
+    if update.message and chat is not None:
+        await update.message.reply_text(
+            f"🔒 Este bot es privado.\nTu ID de chat es: {chat.id}"
+        )
+    raise ApplicationHandlerStop
+
+# ──────────────────────────────────────────────
+# Servidor web: webhook de Telegram + OAuth callback
+# ──────────────────────────────────────────────
+def make_web_app(application) -> web.Application:
+    async def telegram_webhook(request: web.Request) -> web.Response:
+        """Recibe updates de Telegram. Rechaza todo pedido sin el secreto que sólo Telegram conoce."""
+        got = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not hmac.compare_digest(got, WEBHOOK_SECRET):
+            log.warning("Webhook rechazado: secreto inválido desde %s", request.remote)
+            return web.Response(status=403, text="forbidden")
+        try:
+            data = await request.json()
+        except Exception:
+            return web.Response(status=400, text="bad request")
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return web.Response(text="ok")
+
+    web_app = web.Application(client_max_size=1024 * 1024)
+    web_app["bot_app"] = application
+    web_app.router.add_post(WEBHOOK_PATH, telegram_webhook)
+    web_app.router.add_get("/oauth/callback", oauth_callback)
+    web_app.router.add_get("/health", lambda r: web.Response(text="ok"))
+    return web_app
+
+# ──────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────
 def main():
@@ -1382,6 +1444,9 @@ def main():
         .updater(None)   # Sin updater propio — usamos webhook vía aiohttp
         .build()
     )
+
+    # Filtro global (grupo -1, corre antes que todo): sólo chats autorizados
+    application.add_handler(TypeHandler(Update, auth_gate), group=-1)
 
     # Handlers
     application.add_handler(CommandHandler("start",           cmd_start))
@@ -1420,31 +1485,22 @@ def main():
     # Día 1 a las 09:00 ART = 12:00 UTC
     jq.run_daily(notif_nuevo_mes, time=__import__("datetime").time(12, 0), days=(0,1,2,3,4,5,6))
 
-    async def telegram_webhook(request: web.Request) -> web.Response:
-        """Recibe updates de Telegram vía webhook."""
-        data = await request.json()
-        update = Update.de_json(data, application.bot)
-        await application.process_update(update)
-        return web.Response(text="ok")
-
-    # Servidor web unificado: webhook de Telegram + OAuth callback
-    web_app = web.Application()
-    web_app["bot_app"] = application
-    web_app.router.add_post(f"/webhook/{BOT_TOKEN}", telegram_webhook)
-    web_app.router.add_get("/oauth/callback", oauth_callback)
-    web_app.router.add_get("/health", lambda r: web.Response(text="ok"))
+    web_app = make_web_app(application)
 
     async def run():
         await application.initialize()
         await application.start()
 
         # Registrar webhook en Telegram
-        webhook_endpoint = f"{WEBHOOK_URL}/webhook/{BOT_TOKEN}"
+        webhook_endpoint = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
         await application.bot.set_webhook(
             url=webhook_endpoint,
+            secret_token=WEBHOOK_SECRET,
             drop_pending_updates=True,
         )
         log.info(f"Webhook registrado: {webhook_endpoint}")
+        if not ALLOWED_CHAT_IDS:
+            log.warning("ALLOWED_CHAT_IDS está vacío: el bot no atiende a nadie hasta configurarlo.")
 
         runner = web.AppRunner(web_app)
         await runner.setup()

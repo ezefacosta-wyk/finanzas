@@ -1,0 +1,6 @@
+Librerías alojadas en el propio repo (no se cargan de un CDN de terceros).
+
+pdf.min.js / pdf.worker.min.js  pdfjs-dist 3.11.174 (npm). Se usa con isEvalSupported:false (mitiga CVE-2024-4367).
+xlsx.full.min.js                SheetJS 0.20.3, copia del paquete npm @e965/xlsx@0.20.3 (republica el build oficial de cdn.sheetjs.com).
+                                Corrige CVE-2023-30533 y CVE-2024-22363.
+tabler/                         @tabler/icons-webfont 3.19.0 (npm).
