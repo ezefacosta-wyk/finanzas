@@ -520,6 +520,8 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .add-row .money-field{width:150px;flex-shrink:0}
 .item-amt{white-space:nowrap}
 .btn-sm{font-size:12px;padding:5px 10px}
+.btn.has-comp{border-color:rgba(52,211,153,.35);color:#34d399}
+.comp-n{background:rgba(52,211,153,.18);color:#34d399;border-radius:8px;padding:0 6px;font-size:11px;font-weight:700;margin-left:2px}
 .btn-del{background:transparent;border:1px solid transparent;color:var(--ink3);width:34px;height:34px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;transition:color .12s,background .12s}
 .btn-del:hover,.btn-del:focus-visible{color:var(--danger);background:var(--danger-bg);border-color:rgba(248,113,113,.3)}
 .srv-row{display:grid;grid-template-columns:minmax(0,1fr) 170px auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -527,6 +529,8 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .srv-row.srv-missing .money-field{border-color:rgba(251,191,36,.35)}
 .srv-name{font-size:14px;color:var(--ink);font-weight:500;overflow-wrap:anywhere}
 .srv-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+.srv-actions .btn-sm:nth-child(2){min-width:78px;justify-content:center}
+@media(min-width:641px){.srv-row{grid-template-columns:minmax(0,1fr) 170px 196px}}
 .tc-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .tc-tools{display:flex;gap:6px;align-items:center}
 .tc-resta{padding:2px 0 10px}
@@ -1053,22 +1057,34 @@ async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{.
 function dq(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 async function driveList(q,fields){const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&pageSize=1000&q='+encodeURIComponent(q)+'&fields='+encodeURIComponent('files('+fields+')'));if(!r||!r.ok)return [];const d=await r.json();return d.files||[];}
 // ── Comprobantes del mes: sólo lee Drive, nunca crea carpetas ──
-// Web: Comprobantes/<servicio>/<AAAA-MM>/archivo   ·   Bot: Comprobantes/<servicio>/<AAAA-MM>_xxx.ext
+// Busca igual que «Ver»: Comprobantes/<servicio>/<AAAA-MM>/ (web), más los archivos del bot
+// en Comprobantes/<servicio>/ cuyo nombre empieza con AAAA-MM. Compara nombres sin distinguir
+// mayúsculas, acentos ni espacios de más, y tolera carpetas duplicadas.
 const compCache={};
 const FOLDER="application/vnd.google-apps.folder";
-async function loadCompCounts(force){if(!accessToken)return;const mes=curYear+'-'+String(curMonth+1).padStart(2,'0');if(!force&&compCache[mes])return;compCache[mes]={loading:true};
+const normName=v=>String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
+async function driveListAll(q,fields){let out=[],tok='';for(let i=0;i<10;i++){const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&pageSize=1000&q='+encodeURIComponent(q)+'&fields='+encodeURIComponent('nextPageToken,files('+fields+')')+(tok?'&pageToken='+encodeURIComponent(tok):''));if(!r||!r.ok)throw new Error('drive');const d=await r.json();out=out.concat(d.files||[]);if(!d.nextPageToken)break;tok=d.nextPageToken;}return out;}
+const inParents=ids=>'('+ids.map(id=>"'"+dq(id)+"' in parents").join(' or ')+')';
+async function loadCompCounts(force){if(!accessToken)return;const mes=curYear+'-'+String(curMonth+1).padStart(2,'0');const c=compCache[mes];
+  if(c&&(c.loading||(!force&&Date.now()-c.t<60000)))return;compCache[mes]={loading:true,map:c&&c.map,t:c?c.t:0};
   try{const root=await getRootFolder();if(!root){delete compCache[mes];return;}
-    const comp=(await driveList("mimeType='"+FOLDER+"' and name='Comprobantes' and '"+dq(root)+"' in parents and trashed=false",'id'))[0];
     const map={};
-    if(comp){const srv=await driveList("mimeType='"+FOLDER+"' and '"+dq(comp.id)+"' in parents and trashed=false",'id,name');
-      if(srv.length){const byId={};srv.forEach(f=>byId[f.id]=f.name);
-        const items=await driveList('('+srv.map(f=>"'"+dq(f.id)+"' in parents").join(' or ')+") and name contains '"+dq(mes)+"' and trashed=false",'id,name,mimeType,parents');
-        const meses=items.filter(f=>f.mimeType===FOLDER&&f.name===mes),mesDe={};meses.forEach(f=>mesDe[f.id]=byId[(f.parents||[])[0]]);
-        items.filter(f=>f.mimeType!==FOLDER).forEach(f=>{const n=byId[(f.parents||[])[0]];if(n)map[n]=(map[n]||0)+1;});
-        if(meses.length){const fs=await driveList('('+meses.map(f=>"'"+dq(f.id)+"' in parents").join(' or ')+") and mimeType!='"+FOLDER+"' and trashed=false",'id,parents');
-          fs.forEach(f=>{const n=mesDe[(f.parents||[])[0]];if(n)map[n]=(map[n]||0)+1;});}}}
-    compCache[mes]={map};renderSides();
-  }catch(e){delete compCache[mes];}}
+    const comps=await driveListAll("mimeType='"+FOLDER+"' and name='Comprobantes' and '"+dq(root)+"' in parents and trashed=false",'id');
+    if(comps.length){const srv=await driveListAll("mimeType='"+FOLDER+"' and "+inParents(comps.map(f=>f.id))+" and trashed=false",'id,name');
+      if(srv.length){const srvName={};srv.forEach(f=>srvName[f.id]=normName(f.name));
+        const meses=await driveListAll("mimeType='"+FOLDER+"' and name='"+dq(mes)+"' and "+inParents(srv.map(f=>f.id))+" and trashed=false",'id,parents');
+        const mesSrv={};meses.forEach(f=>mesSrv[f.id]=srvName[(f.parents||[])[0]]);
+        const files=await driveListAll("mimeType!='"+FOLDER+"' and "+inParents(srv.map(f=>f.id).concat(meses.map(f=>f.id)))+" and trashed=false",'id,name,parents');
+        files.forEach(f=>{const par=(f.parents||[])[0];let n=null;
+          if(mesSrv[par])n=mesSrv[par];                                   // subido desde la web
+          else if(srvName[par]&&String(f.name||'').startsWith(mes))n=srvName[par]; // subido por el bot
+          if(n)map[n]=(map[n]||0)+1;});}}
+    compCache[mes]={map,t:Date.now()};renderSides();updateCompButtons();
+  }catch(e){compCache[mes]={map:(c&&c.map)||null,t:0,err:true};renderSides();}}
+// Actualiza sólo los botones «Ver» (no redibuja la lista, para no interrumpir si estás escribiendo un monto)
+function updateCompButtons(){state.servicios.forEach((x,i)=>{const row=document.getElementById('srv-row-'+(x.id||('srv_'+i)));if(!row)return;const btn=row.querySelectorAll('.srv-actions .btn-sm')[1];if(!btn)return;const n=compCount(x.name);
+  btn.classList.toggle('has-comp',n>0);btn.title=n==null?'Ver comprobantes':n+' comprobante(s) este mes';btn.innerHTML='<i class="ti ti-files"></i> Ver'+(n>0?' <span class="comp-n">'+n+'</span>':'');});}
+function compCount(name){const mes=curYear+'-'+String(curMonth+1).padStart(2,'0'),c=compCache[mes];return c&&c.map?(c.map[normName(name)]||0):null;}
 async function findFolder(name,parentId){let q='mimeType=\'application/vnd.google-apps.folder\' and name=\''+dq(name)+'\' and trashed=false';if(parentId)q+=' and \''+parentId+'\' in parents';else q+=' and \'root\' in parents';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
 async function ensureFolder(name,parentId){let fid=await findFolder(name,parentId);if(fid)return fid;const meta={name,mimeType:'application/vnd.google-apps.folder'};if(parentId)meta.parents=[parentId];else meta.parents=['root'];const r=await driveReq('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta)});if(!r)return null;const d=await r.json();return d.id||null;}
 async function getRootFolder(){if(rootFolderId)return rootFolderId;const cached=localStorage.getItem('fin_gdrive_root_id');if(cached){rootFolderId=cached;return cached;}rootFolderId=await ensureFolder(ROOT_FOLDER,null);if(rootFolderId)localStorage.setItem('fin_gdrive_root_id',rootFolderId);return rootFolderId;}
@@ -1240,7 +1256,7 @@ function showTab(name){
   document.querySelectorAll('.dnav-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   const di=document.getElementById('dnav-'+name);if(di)di.classList.add('active');
-  const lbl=document.getElementById('currentTabLabel');if(lbl)lbl.textContent=TAB_LABELS[name]||name;const ht=document.getElementById('hdrTitle');if(ht)ht.textContent=TAB_LABELS[name]||name;renderSides();
+  const lbl=document.getElementById('currentTabLabel');if(lbl)lbl.textContent=TAB_LABELS[name]||name;const ht=document.getElementById('hdrTitle');if(ht)ht.textContent=TAB_LABELS[name]||name;renderSides();if(name==='servicios'&&accessToken)loadCompCounts(true);
   // En desktop: Resumen vuelve al dashboard
   if(isDesktop()&&name==='resumen'&&!document.getElementById('desktopDashboard').classList.contains('visible'))showApp();
 }
@@ -1348,7 +1364,7 @@ function renderServicios(){
       <div class="money-field"><span>$</span><input class="money" type="text" inputmode="decimal" autocomplete="off" value="${fmtInput(s.amt)}" placeholder="Sin cargar" aria-label="Monto de ${esc(s.name)}" onchange="updateServ(${jsa(srvId)},this.value)"></div>
       <div class="srv-actions">
         <button class="btn btn-sm" onclick="openComprobante(${jsa(srvId)},${jsa(s.name)},${jsa(mespfx)})"><i class="ti ti-upload"></i> Subir</button>
-        <button class="btn btn-sm" onclick="verComprobantes(${jsa(srvId)},${jsa(s.name)},${jsa(mespfx)})"><i class="ti ti-files"></i> Ver</button>
+        <button class="btn btn-sm${compCount(s.name)>0?' has-comp':''}" onclick="verComprobantes(${jsa(srvId)},${jsa(s.name)},${jsa(mespfx)})" title="${compCount(s.name)==null?'Ver comprobantes':compCount(s.name)+' comprobante(s) este mes'}"><i class="ti ti-files"></i> Ver${compCount(s.name)>0?' <span class="comp-n">'+compCount(s.name)+'</span>':''}</button>
         <button class="btn-del" onclick="removeServicio(${jsa(srvId)})" aria-label="Eliminar servicio" title="Eliminar servicio"><i class="ti ti-trash"></i></button>
       </div>
     </div>`;
@@ -1419,8 +1435,8 @@ function sideSpark(titulo,fn,color){const ms=[];for(let k=5;k>=0;k--){const {y,m
 function sideBar(parts){const tot=parts.reduce((a,x)=>a+x.v,0)||1;return '<div class="side-bar">'+parts.filter(x=>x.v>0).map(x=>'<div style="width:'+(x.v/tot*100)+'%;background:'+x.c+'"></div>').join('')+'</div><div class="side-leg">'+parts.map(x=>'<span><i style="background:'+x.c+'"></i>'+x.n+' '+Math.round(x.v/tot*100)+'%</span>').join('')+'</div>';}
 const kv=(k,v)=>'<div class="side-kv"><span>'+k+'</span>'+v+'</div>';
 function compRow(){if(!accessToken||!state.servicios.length)return '';loadCompCounts();const mes=curYear+'-'+String(curMonth+1).padStart(2,'0'),c=compCache[mes];
-  if(!c||!c.map)return kv('Comprobantes subidos','<span class="side-sub" style="margin:0">Buscando…</span>');
-  const con=state.servicios.filter(x=>c.map[x.name]>0),sin=state.servicios.filter(x=>!(c.map[x.name]>0));
+  if(!c||!c.map)return kv('Comprobantes subidos','<span class="side-sub" style="margin:0">'+(c&&c.err?'No se pudo consultar Drive':'Buscando…')+'</span>');
+  const con=state.servicios.filter(x=>compCount(x.name)>0),sin=state.servicios.filter(x=>!(compCount(x.name)>0));
   return kv('Comprobantes subidos','<span class="dd-badge" style="background:'+(sin.length?'rgba(251,191,36,.10);color:#fbbf24':'rgba(52,211,153,.12);color:#34d399')+'">'+(sin.length?con.length+' de '+state.servicios.length:'<i class="ti ti-check"></i> Todos')+'</span>')+
     (sin.length?'<div class="side-sub" style="text-align:right;margin-top:-4px">Falta: '+sin.map(x=>esc(x.name)).join(', ')+'</div>':'');}
 function renderSides(){if(!isWide()||!document.getElementById('side-ingresos'))return;const $=id=>document.getElementById(id);
