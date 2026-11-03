@@ -852,6 +852,7 @@ const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.
 const DRIVE_FILE='finanzas_data.json';
 const SERVICIOS_FILE='servicios.json';
 const ROOT_FOLDER='Finanzas';
+const DATA_FOLDER='Datos';   // Finanzas/Datos/: los .json de la app (meses, servicios)
 pdfjsLib.GlobalWorkerOptions.workerSrc='lib/pdf.worker.min.js';
 
 /* ── LÍMITES DE COLUMNAS (coordenadas X del PDF de Galicia) ──
@@ -908,7 +909,7 @@ async function signOut(){
   let enDrive=true;
   if(pushTimer&&accessToken){clearTimeout(pushTimer);pushTimer=null;await saveMonthToDrive();enDrive=!document.getElementById('syncInfo').className.includes('err');}
   try{if(accessToken&&window.google)google.accounts.oauth2.revoke(accessToken);}catch(e){}
-  accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;serviciosPerpetuas=[];
+  accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;dataFolderId=null;dataMigrated=false;serviciosPerpetuas=[];
   try{if(typeof monthFileIds==='object')Object.keys(monthFileIds).forEach(k=>delete monthFileIds[k]);}catch(e){}
   // 2) Borrar de este navegador el token y los datos financieros (quedan en tu Drive).
   //    Si el último cambio no se pudo subir, los datos se conservan para no perderlos.
@@ -1087,21 +1088,53 @@ function updateCompButtons(){state.servicios.forEach((x,i)=>{const row=document.
 function compCount(name){const mes=curYear+'-'+String(curMonth+1).padStart(2,'0'),c=compCache[mes];return c&&c.map?(c.map[normName(name)]||0):null;}
 async function findFolder(name,parentId){let q='mimeType=\'application/vnd.google-apps.folder\' and name=\''+dq(name)+'\' and trashed=false';if(parentId)q+=' and \''+parentId+'\' in parents';else q+=' and \'root\' in parents';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
 async function ensureFolder(name,parentId){let fid=await findFolder(name,parentId);if(fid)return fid;const meta={name,mimeType:'application/vnd.google-apps.folder'};if(parentId)meta.parents=[parentId];else meta.parents=['root'];const r=await driveReq('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta)});if(!r)return null;const d=await r.json();return d.id||null;}
-async function getRootFolder(){if(rootFolderId)return rootFolderId;const cached=localStorage.getItem('fin_gdrive_root_id');if(cached){rootFolderId=cached;return cached;}rootFolderId=await ensureFolder(ROOT_FOLDER,null);if(rootFolderId)localStorage.setItem('fin_gdrive_root_id',rootFolderId);return rootFolderId;}
+// ── Carpeta de datos: Finanzas/Datos/ ──
+let dataFolderId=null,dataMigrated=false;
+// Si varias búsquedas piden la carpeta a la vez, comparten una sola búsqueda/creación (evita carpetas duplicadas)
+let dataFolderP=null,rootFolderP=null;
+async function getDataFolder(){if(dataFolderId)return dataFolderId;const c=localStorage.getItem('fin_gdrive_data_id');if(c){dataFolderId=c;return c;}
+  if(!dataFolderP)dataFolderP=(async()=>{const root=await getRootFolder();if(!root)return null;const id=await ensureFolder(DATA_FOLDER,root);if(id){dataFolderId=id;localStorage.setItem('fin_gdrive_data_id',id);}return id;})().finally(()=>{dataFolderP=null;});
+  return dataFolderP;}
+const isDataFile=n=>/^finanzas_\d{4}_\d{2}\.json$/.test(n)||n===SERVICIOS_FILE||n===DRIVE_FILE;
+async function moveFile(id,toId,fromId,newName){const u='https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id)+'?addParents='+encodeURIComponent(toId)+'&removeParents='+encodeURIComponent(fromId)+'&fields=id';
+  const r=await driveReq(u,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(newName?{name:newName}:{})});return !!(r&&r.ok);}
+async function renameFile(id,name){const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id)+'?fields=id',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});return !!(r&&r.ok);}
+// Mueve a Finanzas/Datos/ los .json que hayan quedado sueltos en Finanzas/. No borra nada:
+// si el mismo archivo ya está en Datos, se queda el más reciente y el otro se renombra como respaldo.
+async function migrateDataFiles(){if(dataMigrated||!accessToken)return;
+  try{const root=await getRootFolder(),datos=await getDataFolder();if(!root||!datos)return;
+    const sueltos=(await driveListAll("'"+dq(root)+"' in parents and mimeType!='"+FOLDER+"' and trashed=false",'id,name,modifiedTime')).filter(f=>isDataFile(f.name));
+    if(sueltos.length){const enDatos={};(await driveListAll("'"+dq(datos)+"' in parents and mimeType!='"+FOLDER+"' and trashed=false",'id,name,modifiedTime')).forEach(f=>{if(!enDatos[f.name]||f.modifiedTime>enDatos[f.name].modifiedTime)enDatos[f.name]=f;});
+      const hoy=new Date().toISOString().slice(0,10);
+      for(const f of sueltos){const otro=enDatos[f.name];
+        if(!otro){await moveFile(f.id,datos,root);continue;}
+        const resp=f.name.replace(/\.json$/,'')+' (respaldo '+hoy+').json';
+        if(f.modifiedTime>otro.modifiedTime){await renameFile(otro.id,resp);await moveFile(f.id,datos,root);}
+        else await moveFile(f.id,datos,root,resp);}
+      // los ids guardados pueden apuntar a un respaldo: se vuelven a buscar
+      driveFileId=null;serviciosFileId=null;localStorage.removeItem('fin_gdrive_fileid');localStorage.removeItem('fin_gdrive_srv_id');Object.keys(monthFileIds).forEach(k=>delete monthFileIds[k]);}
+    dataMigrated=true;
+  }catch(e){/* se reintenta en la próxima carga; findDataFile igual mueve archivo por archivo */}}
+// Busca un .json en Datos; si todavía está en la raíz, lo mueve a Datos (mismo id) y lo devuelve
+async function findDataFile(name){const datos=await getDataFolder();if(!datos)return null;let id=await findFileInFolder(name,datos);if(id)return id;
+  const root=await getRootFolder();const vieja=root?await findFileInFolder(name,root):null;if(vieja&&await moveFile(vieja,datos,root))return vieja;return vieja||null;}
+async function getRootFolder(){if(rootFolderId)return rootFolderId;const cached=localStorage.getItem('fin_gdrive_root_id');if(cached){rootFolderId=cached;return cached;}
+  if(!rootFolderP)rootFolderP=(async()=>{const id=await ensureFolder(ROOT_FOLDER,null);if(id){rootFolderId=id;localStorage.setItem('fin_gdrive_root_id',id);}return id;})().finally(()=>{rootFolderP=null;});
+  return rootFolderP;}
 async function findFileInFolder(name,folderId){const q='name=\''+dq(name)+'\' and \''+folderId+'\' in parents and trashed=false';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
 async function readJsonFile(fileId){const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media');if(!r)return null;try{return await r.json();}catch(e){return null;}}
 async function writeJsonFile(name,folderId,data,existingId){const blob=new Blob([JSON.stringify(data)],{type:'application/json'});if(existingId){await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+existingId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});return existingId;}const meta={name,parents:[folderId]};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(!r)return null;const d=await r.json();return d.id||null;}
 
-async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const root=await getRootFolder();if(!root)return null;const fid=await findFileInFolder(DRIVE_FILE,root);if(fid){driveFileId=fid;localStorage.setItem('fin_gdrive_fileid',fid);}return driveFileId||null;}
-async function findServiciosFile(){if(serviciosFileId)return serviciosFileId;const c=localStorage.getItem('fin_gdrive_srv_id');if(c){serviciosFileId=c;return c;}const root=await getRootFolder();if(!root)return null;const fid=await findFileInFolder(SERVICIOS_FILE,root);if(fid){serviciosFileId=fid;localStorage.setItem('fin_gdrive_srv_id',fid);}return serviciosFileId||null;}
+async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const fid=await findDataFile(DRIVE_FILE);if(fid){driveFileId=fid;localStorage.setItem('fin_gdrive_fileid',fid);}return driveFileId||null;}
+async function findServiciosFile(){if(serviciosFileId)return serviciosFileId;const c=localStorage.getItem('fin_gdrive_srv_id');if(c){serviciosFileId=c;return c;}const fid=await findDataFile(SERVICIOS_FILE);if(fid){serviciosFileId=fid;localStorage.setItem('fin_gdrive_srv_id',fid);}return serviciosFileId||null;}
 
 async function loadServiciosFromDrive(){try{const fid=await findServiciosFile();if(!fid){serviciosPerpetuas=[];return;}const d=await readJsonFile(fid);if(Array.isArray(d))serviciosPerpetuas=d;else serviciosPerpetuas=[];}catch(e){serviciosPerpetuas=[];}}
-async function saveServiciosToDrive(){try{const root=await getRootFolder();if(!root)return;const fid=await findServiciosFile();const newId=await writeJsonFile(SERVICIOS_FILE,root,serviciosPerpetuas,fid||null);if(newId&&!serviciosFileId){serviciosFileId=newId;localStorage.setItem('fin_gdrive_srv_id',newId);}}catch(e){setSyncInfo('Error al guardar servicios','err');}}
+async function saveServiciosToDrive(){try{const datos=await getDataFolder();if(!datos)return;const fid=await findServiciosFile();const newId=await writeJsonFile(SERVICIOS_FILE,datos,serviciosPerpetuas,fid||null);if(newId&&!serviciosFileId){serviciosFileId=newId;localStorage.setItem('fin_gdrive_srv_id',newId);}}catch(e){setSyncInfo('Error al guardar servicios','err');}}
 
-async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{await loadServiciosFromDrive();// Cargar mes actual desde archivo mensual
+async function loadFromDrive(){setSyncInfo('<i class="ti ti-loader"></i> Cargando...','spin');try{await migrateDataFiles();await loadServiciosFromDrive();// Cargar mes actual desde archivo mensual
 const driveData=await loadMonthFromDrive(curYear,curMonth);if(driveData){try{localStorage.setItem(mkey(),JSON.stringify(driveData));}catch(e){}state=getState();setSyncInfo('Sincronizado ✓','ok');return;}// Fallback: leer archivo global viejo (migración)
 const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún','');return;}const d=await readJsonFile(fid);if(!d){setSyncInfo('Error al leer datos','err');return;}Object.entries(d).forEach(([k,v])=>localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v)));state=getState();setSyncInfo('Sincronizado ✓','ok');}catch(e){setSyncInfo('Error al cargar','err');}}
-async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const root=await getRootFolder();if(!root){setSyncInfo('Error: carpeta Drive','err');return;}const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const fid=await findDriveFile();const newId=await writeJsonFile(DRIVE_FILE,root,d,fid||null);if(newId&&!driveFileId){driveFileId=newId;localStorage.setItem('fin_gdrive_fileid',newId);}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
+async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const datos=await getDataFolder();if(!datos){setSyncInfo('Error: carpeta Drive','err');return;}const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const fid=await findDriveFile();const newId=await writeJsonFile(DRIVE_FILE,datos,d,fid||null);if(newId&&!driveFileId){driveFileId=newId;localStorage.setItem('fin_gdrive_fileid',newId);}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
 function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');syncDrawerUser();updateHdrSync(type,el.textContent.trim());}
 // Indicador de sincronización en la cabecera (reemplaza la franja con avatar y Salir)
 function updateHdrSync(type,txt){const h=document.getElementById('hdrSync');if(!h)return;const ic={spin:'ti-loader-2 spin',ok:'ti-cloud-check',err:'ti-cloud-off'}[type]||'ti-cloud';h.className='hdr-sync'+(type?' '+type:'');const t=txt||'Sin cambios pendientes';h.innerHTML='<i class="ti '+ic+'"></i><span class="hdr-sync-txt">'+esc(t.replace(/✓/g,'').trim()||'Sincronizado')+'</span>';h.title=t;h.setAttribute('aria-label',t);}
@@ -1507,8 +1540,7 @@ const monthFileIds={};
 function monthFileName(y,m){return 'finanzas_'+(y===undefined?curYear:y)+'_'+String((m===undefined?curMonth:m)+1).padStart(2,'0')+'.json';}
 async function loadMonthFromDrive(y,m){
   const fname=monthFileName(y,m);
-  const root=await getRootFolder();if(!root)return null;
-  const fid=await findFileInFolder(fname,root);
+  const fid=await findDataFile(fname);
   if(!fid)return null;
   monthFileIds[fname]=fid;
   return readJsonFile(fid);
@@ -1517,10 +1549,10 @@ async function saveMonthToDrive(){
   if(!accessToken)return;
   setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');
   try{
-    const root=await getRootFolder();if(!root){setSyncInfo('Error: carpeta Drive','err');return;}
+    const datos=await getDataFolder();if(!datos){setSyncInfo('Error: carpeta Drive','err');return;}
     const fname=monthFileName();
-    const fid=monthFileIds[fname]||null;
-    const newId=await writeJsonFile(fname,root,state,fid);
+    const fid=monthFileIds[fname]||await findDataFile(fname);
+    const newId=await writeJsonFile(fname,datos,state,fid);
     if(newId)monthFileIds[fname]=newId;
     // también guardar en localStorage como cache
     try{localStorage.setItem(mkey(),JSON.stringify(state));}catch(e){}

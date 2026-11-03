@@ -62,6 +62,7 @@ SCOPES = [
 DRIVE_ROOT_FOLDER  = "Finanzas"
 DATA_FILE          = "finanzas_data.json"
 SERVICIOS_FILE     = "servicios.json"
+DATA_FOLDER        = "Datos"   # Finanzas/Datos/: los .json de la app (igual que la web)
 COMPROBANTES_FOLDER = "Comprobantes"
 
 MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -226,14 +227,34 @@ def write_json_file(drive, name: str, folder_id: str, data, existing_id: str | N
         drive.files().create(body=meta, media_body=media, fields="id").execute()
         log.info(f"'{name}' creado en carpeta {folder_id}")
 
+# ── Carpeta de datos: Finanzas/Datos/ ───────────────────────────────────────
+
+def get_data_folder(drive, root_id: str) -> str:
+    return ensure_folder(drive, DATA_FOLDER, root_id)
+
+def find_data_file(drive, name: str, root_id: str) -> tuple[str | None, str]:
+    """Busca un .json en Finanzas/Datos/. Si todavía está suelto en Finanzas/, lo mueve
+    a Datos (conserva el mismo id, no se borra nada). Devuelve (file_id, data_folder_id)."""
+    data_id = get_data_folder(drive, root_id)
+    fid = find_file_in_folder(drive, name, data_id)
+    if fid:
+        return fid, data_id
+    old = find_file_in_folder(drive, name, root_id)
+    if old:
+        drive.files().update(fileId=old, addParents=data_id, removeParents=root_id,
+                             fields="id").execute()
+        log.info(f"'{name}' movido a {DRIVE_ROOT_FOLDER}/{DATA_FOLDER}/ (id={old})")
+        return old, data_id
+    return None, data_id
+
 # ── finanzas_data.json ──────────────────────────────────────────────────────
 
 def read_drive_data(creds: Credentials) -> dict:
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    fid = find_file_in_folder(drive, DATA_FILE, root_id)
+    fid, _ = find_data_file(drive, DATA_FILE, root_id)
     if not fid:
-        log.info(f"No se encontró {DATA_FILE} en Finanzas/")
+        log.info(f"No se encontró {DATA_FILE} en {DRIVE_ROOT_FOLDER}/{DATA_FOLDER}/")
         return {}
     log.info(f"Leyendo {DATA_FILE} con id={fid}")
     return read_json_file(drive, fid)
@@ -241,8 +262,8 @@ def read_drive_data(creds: Credentials) -> dict:
 def write_drive_data(creds: Credentials, data: dict):
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    fid = find_file_in_folder(drive, DATA_FILE, root_id)
-    write_json_file(drive, DATA_FILE, root_id, data, fid)
+    fid, data_id = find_data_file(drive, DATA_FILE, root_id)
+    write_json_file(drive, DATA_FILE, data_id, data, fid)
 
 # ── servicios.json ──────────────────────────────────────────────────────────
 
@@ -250,7 +271,7 @@ def read_servicios(creds: Credentials) -> list:
     """Devuelve la lista de servicios perpetuos del usuario."""
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    fid = find_file_in_folder(drive, SERVICIOS_FILE, root_id)
+    fid, _ = find_data_file(drive, SERVICIOS_FILE, root_id)
     if not fid:
         return []
     return read_json_file(drive, fid)
@@ -258,8 +279,8 @@ def read_servicios(creds: Credentials) -> list:
 def write_servicios(creds: Credentials, servicios: list):
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    fid = find_file_in_folder(drive, SERVICIOS_FILE, root_id)
-    write_json_file(drive, SERVICIOS_FILE, root_id, servicios, fid)
+    fid, data_id = find_data_file(drive, SERVICIOS_FILE, root_id)
+    write_json_file(drive, SERVICIOS_FILE, data_id, servicios, fid)
 
 # ── Subir comprobante ───────────────────────────────────────────────────────
 
