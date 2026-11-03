@@ -159,10 +159,14 @@ def get_drive(creds: Credentials):
 
 # ── Helpers de carpetas en Drive raíz ──────────────────────────────────────
 
+def dq(v: str) -> str:
+    """Texto seguro dentro de una consulta de Drive ('...')."""
+    return str(v).replace("\\", "\\\\").replace("'", "\\'")
+
 def find_folder(drive, name: str, parent_id: str | None = None) -> str | None:
     """Busca una carpeta por nombre. Si parent_id es None busca en root."""
     parent_q = f"'{parent_id}' in parents" if parent_id else "'root' in parents"
-    q = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and {parent_q} and trashed=false"
+    q = f"name='{dq(name)}' and mimeType='application/vnd.google-apps.folder' and {parent_q} and trashed=false"
     res = drive.files().list(q=q, spaces="drive", fields="files(id)").execute()
     files = res.get("files", [])
     return files[0]["id"] if files else None
@@ -194,7 +198,7 @@ def get_comprobantes_folder(drive, root_id: str, servicio_name: str) -> str:
 # ── Helpers de archivos JSON ────────────────────────────────────────────────
 
 def find_file_in_folder(drive, name: str, folder_id: str) -> str | None:
-    q = f"name='{name}' and '{folder_id}' in parents and trashed=false"
+    q = f"name='{dq(name)}' and '{folder_id}' in parents and trashed=false"
     res = drive.files().list(q=q, spaces="drive", fields="files(id)",
                              orderBy="modifiedTime desc").execute()
     files = res.get("files", [])
@@ -281,7 +285,7 @@ def list_comprobantes(creds: Credentials, servicio_name: str, mes_prefix: str) -
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
     srv_folder_id = get_comprobantes_folder(drive, root_id, servicio_name)
-    q = f"'{srv_folder_id}' in parents and name contains '{mes_prefix}' and trashed=false"
+    q = f"'{srv_folder_id}' in parents and name contains '{dq(mes_prefix)}' and trashed=false"
     res = drive.files().list(q=q, spaces="drive",
                              fields="files(id,name)", orderBy="name").execute()
     return res.get("files", [])
