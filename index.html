@@ -387,11 +387,11 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6c8fff,#8ba4ff);color:#fff;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .dd-avatar-btn{background:none;border:none;cursor:pointer;padding:0}
 .dd-body{flex:1;overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column;gap:18px}
-.dd-sec-lbl{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#5a6580;margin-bottom:9px}
+.dd-sec-lbl{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#7f8aa6;margin-bottom:9px}
 .dd-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .dd-kpi{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:15px 17px}
 .dd-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
-.dd-kpi-lbl{font-size:10px;font-weight:700;color:#5a6580;text-transform:uppercase;letter-spacing:.06em}
+.dd-kpi-lbl{font-size:10px;font-weight:700;color:#7f8aa6;text-transform:uppercase;letter-spacing:.06em}
 .dd-kpi-chip{font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
 .dd-kpi-val{font-size:25px;font-weight:800;line-height:1;letter-spacing:-.5px;margin-bottom:3px}
 .dd-kpi-sub{font-size:11px;color:#8892aa}
@@ -408,7 +408,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-card-ico svg{display:block}
 .dd-card-info{flex:1;min-width:0}
 .dd-card-name{font-size:12px;font-weight:600;color:#c8d0e0}
-.dd-card-meta{font-size:10px;color:#5a6580;margin-top:1px}
+.dd-card-meta{font-size:10px;color:#7f8aa6;margin-top:1px}
 .dd-card-right{text-align:right;flex-shrink:0}
 .dd-card-total{font-size:13px;font-weight:800;color:#e2e6f0}
 .dd-badge{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:2px}
@@ -417,7 +417,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-svc-bar{width:4px;height:28px;border-radius:2px;flex-shrink:0}
 .dd-svc-info{flex:1}
 .dd-svc-name{font-size:12px;font-weight:600;color:#c8d0e0}
-.dd-svc-sub{font-size:10px;color:#5a6580}
+.dd-svc-sub{font-size:10px;color:#7f8aa6}
 .dd-svc-amt{font-size:12px;font-weight:700;color:#e2e6f0}
 .dd-right-col{display:flex;flex-direction:column;gap:12px}
 .dd-right-panel{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:17px}
@@ -425,7 +425,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-bar-g{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
 .dd-bar-inner{flex:1;display:flex;align-items:flex-end;width:100%}
 .dd-bar{width:100%;border-radius:4px 4px 0 0}
-.dd-bar-lbl{font-size:9px;color:#5a6580;font-weight:600}
+.dd-bar-lbl{font-size:9px;color:#7f8aa6;font-weight:600}
 .dd-bar-lbl.cur{color:#6c8fff;font-weight:800}
 .dd-dist-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .dd-dist-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
@@ -441,6 +441,51 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .dd-menu-icon span:nth-child(2){width:70%}
 .dd-exit-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#8892aa;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
 .dd-exit-btn:hover{background:rgba(255,255,255,0.09);color:#e2e6f0}
+/* ── Resumen desktop v2 ── */
+.dd-wrap{width:100%;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.dd-page-title{font-size:13px;font-weight:700;color:#c8d0e0;margin-left:6px}
+.dd-month-btn{width:32px;height:32px;font-size:15px}
+.dd-sec-lbl,.dd-kpi-lbl{font-size:11px}
+.dd-kpi-strip{grid-template-columns:1.35fr 1fr 1fr 1fr}
+.dd-kpi-hero{border-width:1px}
+.dd-kpi-hero .dd-kpi-val{font-size:30px}
+.dd-kpi-hero.ok{border-color:rgba(52,211,153,.35);background:linear-gradient(160deg,rgba(52,211,153,.10),#151a28 60%)}
+.dd-kpi-hero.ok .dd-kpi-val{color:#34d399}.dd-kpi-hero.ok .dd-kpi-div{background:#34d399}.dd-kpi-hero.ok .dd-kpi-chip{background:rgba(52,211,153,.14);color:#34d399}
+.dd-kpi-hero.warn{border-color:rgba(251,191,36,.35);background:linear-gradient(160deg,rgba(251,191,36,.10),#151a28 60%)}
+.dd-kpi-hero.warn .dd-kpi-val{color:#fbbf24}.dd-kpi-hero.warn .dd-kpi-div{background:#fbbf24}.dd-kpi-hero.warn .dd-kpi-chip{background:rgba(251,191,36,.14);color:#fbbf24}
+.dd-kpi-hero.neg{border-color:rgba(248,113,113,.45);background:linear-gradient(160deg,rgba(248,113,113,.14),#151a28 60%)}
+.dd-kpi-hero.neg .dd-kpi-val{color:#f87171}.dd-kpi-hero.neg .dd-kpi-div{background:#f87171}.dd-kpi-hero.neg .dd-kpi-chip{background:rgba(248,113,113,.16);color:#f87171}
+.dd-kpi-hero.empty .dd-kpi-val{color:#8892aa}.dd-kpi-hero.empty .dd-kpi-div{background:rgba(255,255,255,.1)}
+.dd-two-col{grid-template-columns:1.25fr 1fr;align-items:start}
+.dd-card-row,.dd-svc-row{margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
+.dd-card-row:hover,.dd-svc-row:hover{background:rgba(255,255,255,.03)}
+.dd-svc-row{padding-top:10px;padding-bottom:10px}
+.dd-svc-bar{height:18px}
+.dd-svc-name{font-size:12.5px}
+.dd-svc-tag{font-size:10px;font-weight:600;color:#7f8aa6;margin-left:6px}
+.dd-empty{padding:12px 0;font-size:12px;color:#7f8aa6}
+.dd-chart-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
+.dd-chart-title{font-size:21px;font-weight:800}
+.dd-chart-sub{font-size:11px;color:#8892aa;margin-top:2px}
+.dd-chart-chip{font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px;white-space:nowrap}
+.dd-chart{display:flex;gap:7px;height:120px}
+.dd-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.dd-col-plot{flex:1;width:100%;position:relative}
+.dd-col-zero{position:absolute;left:-4px;right:-4px;height:1px;background:rgba(255,255,255,.14)}
+.dd-col-bar{position:absolute;left:12%;right:12%;border-radius:4px}
+.dd-col-bar.nodata{border:1px dashed rgba(255,255,255,.14);height:6px;border-radius:3px}
+.dd-chart-empty{height:120px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8892aa;border:1px dashed rgba(255,255,255,.1);border-radius:10px;padding:0 20px}
+.dd-dist{margin-top:16px;padding-top:13px;border-top:1px solid rgba(255,255,255,0.07)}
+.dd-dist-name{font-size:12px}
+.dd-dist-amt{font-size:11px;color:#8892aa;width:92px;text-align:right;flex-shrink:0}
+.dd-dist-pct{width:36px}
+.dd-kpi-chip{white-space:nowrap;flex-shrink:0}
+.dd-kpi-top{gap:8px}
+@media(max-width:1279px){.dd-chip-x{display:none}.dd-kpi-top{min-height:34px;align-items:flex-start}}
+.dd-cover{margin-top:12px;padding-top:11px;border-top:1px dashed rgba(255,255,255,.08)}
+.dd-cover-lbl{display:flex;justify-content:space-between;font-size:11px;color:#8892aa;margin-bottom:6px;gap:8px}
+.dd-cover-lbl b{color:#e2e6f0}
+.dd-cover-bar{display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px}
 </style>
 </head>
 <body>
@@ -538,67 +583,60 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
     <button class="dd-menu-btn" onclick="toggleDrawer()" title="Menú">
       <span class="dd-menu-icon"><span></span><span></span><span></span></span>Finanzas
     </button>
-    <nav class="dd-nav" id="dd-nav">
-      <span class="dd-nav-link active">Resumen</span>
-    </nav>
+    <span class="dd-page-title">Resumen</span>
     <div class="dd-topbar-right">
       <div class="dd-month-nav">
-        <button class="dd-month-btn" onclick="changeMonth(-1);renderDashboard()">‹</button>
+        <button class="dd-month-btn" onclick="changeMonth(-1)" aria-label="Mes anterior">‹</button>
         <span class="dd-month-label" id="dd-month-label">—</span>
-        <button class="dd-month-btn" onclick="changeMonth(1);renderDashboard()">›</button>
+        <button class="dd-month-btn" onclick="changeMonth(1)" aria-label="Mes siguiente">›</button>
       </div>
       <div class="dd-sync-pill" id="dd-sync-pill">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span id="dd-sync-text">Sincronizado</span>
       </div>
-      <button class="dd-avatar-btn" onclick="toggleDrawer()" title="Menú">
-        <div class="dd-avatar" id="dd-avatar">EF</div>
-      </button>
+      <div class="dd-avatar" id="dd-avatar" aria-hidden="true">EF</div>
     </div>
   </div>
-  <main class="dd-body">
-    <!-- KPI -->
+  <main class="dd-body"><div class="dd-wrap">
+    <!-- KPI: el resultado del mes primero -->
     <div>
       <div class="dd-sec-lbl">Este mes</div>
-      <div class="dd-kpi-strip" id="dd-kpi-strip">
+      <div class="dd-kpi-strip">
+        <div class="dd-kpi dd-kpi-hero" id="dd-kpi-disp"><div class="dd-kpi-top"><span class="dd-kpi-lbl" id="dd-l-disp">Disponible</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-disp"></span></div><div class="dd-kpi-val" id="dd-v-disp">—</div><div class="dd-kpi-sub" id="dd-s-disp"></div><div class="dd-kpi-div"></div></div>
         <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Ingresos</span></div><div class="dd-kpi-val" id="dd-v-ing" style="color:#34d399">—</div><div class="dd-kpi-sub" id="dd-s-ing"></div><div class="dd-kpi-div" style="background:#34d399"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Tarjetas</span><span class="dd-kpi-chip" id="dd-chip-tc" style="background:rgba(248,113,113,0.12);color:#f87171"></span></div><div class="dd-kpi-val" id="dd-v-tc" style="color:#f87171">—</div><div class="dd-kpi-sub" id="dd-s-tc"></div><div class="dd-kpi-div" style="background:#f87171"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Servicios</span><span class="dd-kpi-chip" id="dd-chip-sv" style="background:rgba(251,191,36,0.10);color:#fbbf24"></span></div><div class="dd-kpi-val" id="dd-v-sv" style="color:#fbbf24">—</div><div class="dd-kpi-sub" id="dd-s-sv"></div><div class="dd-kpi-div" style="background:#fbbf24"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Disponible</span><span class="dd-kpi-chip" id="dd-chip-disp" style="background:rgba(108,143,255,0.12);color:#6c8fff"></span></div><div class="dd-kpi-val" id="dd-v-disp" style="color:#6c8fff">—</div><div class="dd-kpi-sub" id="dd-s-disp"></div><div class="dd-kpi-div" style="background:#6c8fff"></div></div>
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Tarjetas pagadas</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-tc" style="background:rgba(167,139,250,0.14);color:#c4b5fd"></span></div><div class="dd-kpi-val" id="dd-v-tc" style="color:#c4b5fd">—</div><div class="dd-kpi-sub" id="dd-s-tc"></div><div class="dd-kpi-div" style="background:#a78bfa"></div></div>
+        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Servicios y gastos</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-sv" style="background:rgba(251,191,36,0.10);color:#fbbf24"></span></div><div class="dd-kpi-val" id="dd-v-sv" style="color:#fbbf24">—</div><div class="dd-kpi-sub" id="dd-s-sv"></div><div class="dd-kpi-div" style="background:#fbbf24"></div></div>
       </div>
     </div>
-    <!-- TWO-COL -->
     <div class="dd-two-col">
       <div class="dd-left-col">
-        <!-- Tarjetas -->
         <div class="dd-panel">
           <div class="dd-panel-hdr"><span class="dd-panel-title">Tarjetas de crédito</span><span class="dd-panel-amt" id="dd-tc-total-lbl"></span></div>
           <div class="dd-panel-body" id="dd-tarjetas-list"></div>
         </div>
-        <!-- Servicios -->
         <div class="dd-panel">
-          <div class="dd-panel-hdr"><span class="dd-panel-title">Servicios</span><span class="dd-panel-amt" id="dd-svc-total-lbl"></span></div>
+          <div class="dd-panel-hdr"><span class="dd-panel-title">Servicios y gastos</span><span class="dd-panel-amt" id="dd-svc-total-lbl"></span></div>
           <div class="dd-panel-body" id="dd-svc-list"></div>
         </div>
       </div>
-      <!-- Right: chart + distribución -->
       <div class="dd-right-panel">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px">
+        <div class="dd-chart-head">
           <div>
             <div class="dd-sec-lbl" style="margin-bottom:2px">Disponible por mes</div>
-            <div style="font-size:21px;font-weight:800;color:#6c8fff" id="dd-chart-title">—</div>
-            <div style="font-size:11px;color:#8892aa;margin-top:2px" id="dd-chart-sub"></div>
+            <div class="dd-chart-title" id="dd-chart-title">—</div>
+            <div class="dd-chart-sub" id="dd-chart-sub"></div>
           </div>
-          <span id="dd-chart-chip" style="font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px"></span>
+          <span class="dd-chart-chip" id="dd-chart-chip"></span>
         </div>
-        <div class="dd-chart-bars" id="dd-chart-bars"></div>
-        <div style="margin-top:15px;padding-top:13px;border-top:1px solid rgba(255,255,255,0.07)">
-          <div class="dd-sec-lbl" style="margin-bottom:9px">Distribución <span id="dd-dist-month"></span></div>
+        <div id="dd-chart"></div>
+        <div class="dd-dist">
+          <div class="dd-sec-lbl" style="margin-bottom:2px">Distribución de <span id="dd-dist-month"></span></div>
+          <div class="dd-chart-sub" id="dd-dist-base" style="margin-bottom:10px"></div>
           <div id="dd-dist-rows"></div>
         </div>
       </div>
     </div>
-  </main>
+  </div></main>
 </div>
 
 <div id="appContent" style="display:none">
@@ -706,7 +744,15 @@ function defState(){return {sueldo:'',extras:[],tarjetas:TDEF.map(n=>({name:n,to
 function getState(y,m){try{const r=localStorage.getItem(mkey(y,m));if(r){const s=JSON.parse(r);s.tarjetas.forEach(t=>{if(t.name==='Nueva tarjeta'||/^Tarjeta \d+$/.test(t.name||''))t.name='';if(!t.extraPagos)t.extraPagos=[];if(!t.detalle)t.detalle=[];});// merge perpetual services: add new ones, keep amounts for existing
 const curIds=new Set((s.servicios||[]).map(sv=>sv.id));serviciosPerpetuas.forEach(ps=>{if(!curIds.has(ps.id))s.servicios.push({id:ps.id,name:ps.name,amt:0});});s.servicios=s.servicios.filter(sv=>serviciosPerpetuas.find(ps=>ps.id===sv.id));return s;}}catch(e){}return (y===undefined&&m===undefined)?defState():null;}
 let state=getState();
-function fmt(n){return '$'+Math.round(n).toLocaleString('es-AR');}
+function fmt(n){n=Math.round(n||0);return (n<0?'−':'')+'$'+Math.abs(n).toLocaleString('es-AR');}
+// Disponible = sueldo + extras − pagos realizados (tarjetas pagadas + servicios + super + gastos extra). Sin reserva.
+// Es el mismo criterio en el resumen mobile y en el dashboard desktop.
+function calcMes(s,superOverride){const st=s||state;const ing=totalIngresos(st);
+  const tcPag=calcTarjetasPagadas(st),tcTotal=st.tarjetas.reduce((a,t)=>a+nv(t.total),0);
+  const sv=(st.servicios||[]).reduce((a,x)=>a+nv(x.amt),0);
+  const sup=superOverride!=null?superOverride:nv(st.superAmt);
+  const gx=(st.gastosExtra||[]).reduce((a,g)=>a+nv(g.amt),0);
+  const pagos=tcPag+sv+sup+gx;return {ing,tcPag,tcTotal,sv,sup,gx,pagos,disp:ing-pagos};}
 function fmtUSD(n){return 'U$S '+parseFloat(n||0).toFixed(2);}
 function nv(v){return parseFloat(v)||0;}
 function parseMonto(s){return parseFloat(String(s||'').replace(/\./g,'').replace(',','.'))||0;}
@@ -758,80 +804,108 @@ function exitDesktop(section){
   if(section&&section!=='resumen')navTo(section);
 }
 const MESES_DD=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+// Nombres como los escribió el usuario; sólo se capitaliza si están todo en minúscula ("visa" → "Visa")
+function ddName(n){n=String(n||'');return n&&n===n.toLowerCase()?n.replace(/(^|\s)\S/g,c=>c.toUpperCase()):n;}
+const ddHistFetched=new Set();
+function ddMonthData(y,m){if(y===curYear&&m===curMonth)return state;try{const r=localStorage.getItem('fin4_'+y+'_'+m);if(r)return JSON.parse(r);}catch(e){}
+  // Si no está en este navegador, traerlo de Drive una sola vez y volver a dibujar
+  const k=y+'_'+m;if(accessToken&&!ddHistFetched.has(k)){ddHistFetched.add(k);loadMonthFromDrive(y,m).then(d=>{if(d){try{localStorage.setItem('fin4_'+y+'_'+m,JSON.stringify(d));}catch(e){}renderDashboard();}}).catch(()=>{});}
+  return null;}
+function ddPct(v,base){return base>0?Math.round(v/base*100):0;}
 function renderDashboard(){
   if(!document.getElementById('desktopDashboard').classList.contains('visible'))return;
-  const ing=totalIngresos();
-  const tcTotal=state.tarjetas.reduce((a,t)=>a+nv(t.total),0);
-  const svTotal=state.servicios.reduce((a,s)=>a+nv(s.amt),0);
-  const superAmt=parseFloat(document.getElementById('super-amt')?.value)||nv(state.superAmt);
-  const gastosExtra=state.gastosExtra?state.gastosExtra.reduce((a,g)=>a+nv(g.amt),0):0;
-  const reserva=ing*0.10;
-  const disp=Math.max(0,ing-tcTotal-svTotal-superAmt-gastosExtra-reserva);
-  const pctTc=ing>0?Math.round(tcTotal/ing*100):0;
-  const pctSv=ing>0?Math.round(svTotal/ing*100):0;
-  const pctDisp=ing>0?Math.round(disp/ing*100):0;
-  const pctRes=10;
-  // month label
-  document.getElementById('dd-month-label').textContent=MESES_DD[curMonth]+' '+curYear;
-  document.getElementById('dd-dist-month').textContent=MESES_DD[curMonth].toLowerCase();
-  // avatar
-  const av=document.getElementById('dd-avatar');
-  const srcAv=document.getElementById('driveAvatar');
-  if(srcAv)av.textContent=srcAv.textContent;
-  // KPI
-  document.getElementById('dd-v-ing').textContent=fmt(ing);
-  document.getElementById('dd-s-ing').textContent='Sueldo'+(state.extras&&state.extras.length?' + extras':'');
-  document.getElementById('dd-chip-tc').textContent=pctTc+'%';
-  document.getElementById('dd-v-tc').textContent=fmt(tcTotal);
-  document.getElementById('dd-s-tc').textContent=state.tarjetas.length+' tarjeta'+(state.tarjetas.length!==1?'s':'');
-  document.getElementById('dd-chip-sv').textContent=pctSv+'%';
-  document.getElementById('dd-v-sv').textContent=fmt(svTotal);
-  document.getElementById('dd-s-sv').textContent=state.servicios.filter(s=>nv(s.amt)>0).length+' activos';
-  document.getElementById('dd-chip-disp').textContent=pctDisp+'%';
-  document.getElementById('dd-v-disp').textContent=fmt(disp);
-  document.getElementById('dd-s-disp').textContent='Tras reserva 10%';
-  // sync pill
-  const syncSrc=document.getElementById('syncInfo');
-  const pill=document.getElementById('dd-sync-pill');
-  const pillTxt=document.getElementById('dd-sync-text');
-  if(syncSrc){const t=syncSrc.textContent.trim();pillTxt.textContent=t||'Sincronizado';pill.style.borderColor=t.includes('Error')||t.includes('exp')?'rgba(248,113,113,.3)':'rgba(52,211,153,.25)';pill.style.color=t.includes('Error')||t.includes('exp')?'#f87171':'#34d399';}
-  // tarjetas list
-  const tcList=document.getElementById('dd-tarjetas-list');
-  document.getElementById('dd-tc-total-lbl').textContent=tcTotal>0?fmt(tcTotal)+' total':'Sin tarjetas';
-  if(!state.tarjetas.length){tcList.innerHTML='<div style="padding:12px 0;font-size:12px;color:#5a6580">No hay tarjetas cargadas</div>';} else {
-    tcList.innerHTML=state.tarjetas.map((t,i)=>{
-      const total=nv(t.total),pagado=nv(t.pagado)+((t.extraPagos||[]).reduce((s,p)=>s+p.amt,0));
-      const saldada=total>0&&pagado>=total;
-      const sinPagar=total>0&&pagado===0;
-      const badge=total===0?'':'saldada'===''?'':(saldada?`<span class="dd-badge" style="background:rgba(52,211,153,.12);color:#34d399">✓ Saldada</span>`:sinPagar?`<span class="dd-badge" style="background:rgba(248,113,113,.12);color:#f87171">⚠ Sin pagar</span>`:`<span class="dd-badge" style="background:rgba(251,191,36,.10);color:#fbbf24">Parcial</span>`);
-      const vence=t.vencimiento?'Vence '+t.vencimiento:'';
-      const minLabel=nv(t.minimo)>0?'mín '+fmt(nv(t.minimo)):'';
-      const meta=[vence,minLabel].filter(Boolean).join(' · ');
-      return `<div class="dd-card-row">${cardMiniIcon(t.name)}<div class="dd-card-info"><div class="dd-card-name">${esc(tcName(t,i))}</div><div class="dd-card-meta">${esc(meta||'Sin datos de vencimiento')}</div></div><div class="dd-card-right"><div class="dd-card-total">${total>0?fmt(total):'$0'}</div>${badge}</div></div>`;
-    }).join('');
-  }
-  // servicios list
-  const svList=document.getElementById('dd-svc-list');
-  document.getElementById('dd-svc-total-lbl').textContent=svTotal>0?fmt(svTotal)+' / mes':'Sin datos';
+  const supInput=parseFloat(document.getElementById('super-amt')?.value);
+  const M=calcMes(state,isNaN(supInput)?null:supInput);
+  const {ing,tcPag,tcTotal,sv,sup,gx,pagos,disp}=M;const otros=sup+gx,svg=sv+otros;
+  const $=id=>document.getElementById(id);
+  $('dd-month-label').textContent=MESES_DD[curMonth]+' '+curYear;
+  $('dd-dist-month').textContent=MESES_DD[curMonth].toLowerCase();
+  const srcAv=$('driveAvatar');if(srcAv){$('dd-avatar').textContent=srcAv.textContent;$('dd-avatar').title=$('driveName')?.textContent||'';}
+
+  // ── KPI principal: Disponible / Déficit ──
+  const hero=$('dd-kpi-disp'),pd=ddPct(disp,ing);
+  const estado=ing<=0&&pagos<=0?'empty':disp<0?'neg':pd<20?'warn':'ok';
+  hero.className='dd-kpi dd-kpi-hero '+estado;
+  $('dd-l-disp').textContent=disp<0?'Déficit':'Disponible';
+  $('dd-v-disp').textContent=fmt(disp);
+  $('dd-chip-disp').innerHTML=ing>0?(pd<0?'−':'')+Math.abs(pd)+'%<span class="dd-chip-x"> del ingreso</span>':'';
+  $('dd-chip-disp').style.display=ing>0?'':'none';
+  $('dd-s-disp').textContent=estado==='empty'?'Cargá tus ingresos y pagos para calcularlo'
+    :disp<0?'Pagaste '+fmt(-disp)+' más de lo que ingresó'
+    :ing<=0?'Sin ingresos cargados':'Sueldo + extras − pagos realizados';
+
+  // ── Otros KPI ──
+  $('dd-v-ing').textContent=fmt(ing);
+  $('dd-s-ing').textContent=ing<=0?'Sin ingresos cargados':'Sueldo'+((state.extras||[]).length?' + extras':'');
+  $('dd-v-tc').textContent=fmt(tcPag);
+  $('dd-chip-tc').innerHTML=ing>0?ddPct(tcPag,ing)+'%<span class="dd-chip-x"> del ingreso</span>':'';$('dd-chip-tc').style.display=ing>0?'':'none';
+  const tcResta=Math.max(0,tcTotal-tcPag);
+  $('dd-s-tc').textContent=tcTotal<=0?'Sin resúmenes cargados':tcResta>0?'de '+fmt(tcTotal)+' · resta '+fmt(tcResta):'Resúmenes saldados';
+  $('dd-v-sv').textContent=fmt(svg);
+  $('dd-chip-sv').innerHTML=ing>0?ddPct(svg,ing)+'%<span class="dd-chip-x"> del ingreso</span>':'';$('dd-chip-sv').style.display=ing>0?'':'none';
+  const nSv=state.servicios.filter(s=>nv(s.amt)>0).length;
+  $('dd-s-sv').textContent=(nSv?nSv+' servicio'+(nSv!==1?'s':''):'Sin servicios')+(otros>0?' + otros '+fmt(otros):'');
+
+  // ── Sincronización (sin tilde duplicada) ──
+  const syncSrc=$('syncInfo'),pill=$('dd-sync-pill'),pillTxt=$('dd-sync-text');
+  if(syncSrc){const t=syncSrc.textContent.replace(/✓/g,'').trim();const err=/Error|exp/.test(t);pillTxt.textContent=t||'Sincronizado';pill.style.borderColor=err?'rgba(248,113,113,.3)':'rgba(52,211,153,.25)';pill.style.color=err?'#f87171':'#34d399';}
+
+  // ── Tarjetas ──
+  $('dd-tc-total-lbl').textContent=tcTotal>0?'Pagado '+fmt(tcPag)+' de '+fmt(tcTotal):'';
+  $('dd-tarjetas-list').innerHTML=!state.tarjetas.length?'<div class="dd-empty">No hay tarjetas cargadas</div>':state.tarjetas.map((t,i)=>{
+    const total=nv(t.total),pagado=nv(t.pagado)+((t.extraPagos||[]).reduce((a,p)=>a+nv(p.amt),0));
+    const badge=total<=0?'':pagado>=total?'<span class="dd-badge" style="background:rgba(52,211,153,.12);color:#34d399"><i class="ti ti-check"></i> Saldada</span>'
+      :pagado<=0?'<span class="dd-badge" style="background:rgba(248,113,113,.12);color:#f87171"><i class="ti ti-alert-triangle"></i> Sin pagar</span>'
+      :'<span class="dd-badge" style="background:rgba(251,191,36,.10);color:#fbbf24"><i class="ti ti-circle-half-2"></i> Parcial</span>';
+    const meta=total<=0?'Sin resumen cargado':'Pagado '+fmt(pagado)+(nv(t.minimo)>0?' · mín. '+fmt(nv(t.minimo)):'');
+    return `<div class="dd-card-row">${cardMiniIcon(t.name)}<div class="dd-card-info"><div class="dd-card-name">${esc(ddName(tcName(t,i)))}</div><div class="dd-card-meta">${esc(meta)}</div></div><div class="dd-card-right"><div class="dd-card-total">${total>0?fmt(total):'—'}</div>${badge}</div></div>`;
+  }).join('');
+
+  // ── Servicios y gastos ──
+  $('dd-svc-total-lbl').textContent=svg>0?fmt(svg):'';
   const svColors=['#6c8fff','#fbbf24','#34d399','#f87171','#5dcaa5','#a78bfa'];
-  if(!state.servicios.length){svList.innerHTML='<div style="padding:12px 0;font-size:12px;color:#5a6580">No hay servicios cargados</div>';}
-  else{svList.innerHTML=state.servicios.map((s,i)=>`<div class="dd-svc-row"><div class="dd-svc-bar" style="background:${svColors[i%svColors.length]}"></div><div class="dd-svc-info"><div class="dd-svc-name">${esc(s.name)}</div><div class="dd-svc-sub">mensual</div></div><div class="dd-svc-amt">${nv(s.amt)>0?fmt(nv(s.amt)):'<span style="font-size:10px;color:#fbbf24">sin monto</span>'}</div></div>`).join('');}
-  // chart (últimos 6 meses disponible)
-  const months=[];for(let i=5;i>=0;i--){let m=curMonth-i,y=curYear;while(m<0){m+=12;y--;}months.push({m,y,lbl:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][m]});}
-  const dispVals=months.map(({m,y})=>{if(m===curMonth&&y===curYear)return disp;try{const s=JSON.parse(localStorage.getItem('fin4_'+y+'_'+m));if(!s)return 0;const si=totalIngresosFrom(s),st=s.tarjetas.reduce((a,t)=>a+nv(t.total),0),ssv=s.servicios.reduce((a,sv)=>a+nv(sv.amt),0);return Math.max(0,si-st-ssv-si*.10);}catch(e){return 0;}});
-  const maxV=Math.max(...dispVals,1);
-  document.getElementById('dd-chart-title').textContent=fmt(disp);
-  const allDisp=dispVals.filter(v=>v>0);
-  const avg=allDisp.length?allDisp.reduce((a,b)=>a+b,0)/allDisp.length:0;
-  document.getElementById('dd-chart-sub').textContent=MESES_DD[curMonth].slice(0,3)+' · promedio: '+fmt(avg);
-  const chip=document.getElementById('dd-chart-chip');
-  if(avg>0&&disp<avg*.9){chip.textContent='↓ Bajo prom.';chip.style.background='rgba(248,113,113,.12)';chip.style.color='#f87171';}
-  else if(avg>0&&disp>avg*1.05){chip.textContent='↑ Sobre prom.';chip.style.background='rgba(52,211,153,.12)';chip.style.color='#34d399';}
-  else{chip.textContent='≈ En línea';chip.style.background='rgba(108,143,255,.12)';chip.style.color='#6c8fff';}
-  document.getElementById('dd-chart-bars').innerHTML=months.map(({m,y,lbl},i)=>{const v=dispVals[i];const pct=Math.round(v/maxV*100)||2;const isCur=m===curMonth&&y===curYear;return`<div class="dd-bar-g"><div class="dd-bar-inner"><div class="dd-bar" style="height:${pct}%;background:${isCur?'#6c8fff':'rgba(108,143,255,0.22)'}"></div></div><div class="dd-bar-lbl ${isCur?'cur':''}">${lbl}</div></div>`;}).join('');
-  // distribución
-  const distItems=[{lbl:'Tarjetas',pct:pctTc,color:'#f87171'},{lbl:'Disponible',pct:pctDisp,color:'#6c8fff'},{lbl:'Reserva',pct:pctRes,color:'#34d399'},{lbl:'Servicios',pct:pctSv,color:'#fbbf24'}];
-  document.getElementById('dd-dist-rows').innerHTML=distItems.map(d=>`<div class="dd-dist-row"><div class="dd-dist-dot" style="background:${d.color}"></div><div class="dd-dist-name">${d.lbl}</div><div class="dd-dist-pct">${d.pct}%</div><div class="dd-dist-track"><div class="dd-dist-fill" style="width:${Math.min(d.pct,100)}%;background:${d.color}"></div></div></div>`).join('');
+  const rows=state.servicios.map((x,i)=>({name:ddName(x.name),amt:nv(x.amt),color:svColors[i%svColors.length],tag:''}));
+  if(sup>0)rows.push({name:'Super / Mercado',amt:sup,color:'#5dcaa5',tag:''});
+  (state.gastosExtra||[]).forEach(g=>rows.push({name:ddName(g.name),amt:nv(g.amt),color:'#8892aa',tag:'gasto extra'}));
+  $('dd-svc-list').innerHTML=!rows.length?'<div class="dd-empty">No hay servicios ni gastos cargados</div>':rows.map(r=>`<div class="dd-svc-row"><div class="dd-svc-bar" style="background:${r.color}"></div><div class="dd-svc-info"><span class="dd-svc-name">${esc(r.name)}</span>${r.tag?`<span class="dd-svc-tag">${r.tag}</span>`:''}</div><div class="dd-svc-amt">${r.amt>0?fmt(r.amt):'<span style="font-size:11px;color:#fbbf24">sin monto</span>'}</div></div>`).join('');
+
+  // ── Disponible por mes (6 meses, con negativos) ──
+  const ML=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const months=[];for(let i=5;i>=0;i--){let m=curMonth-i,y=curYear;while(m<0){m+=12;y--;}const d=ddMonthData(y,m);
+    const c=d?calcMes(d,(y===curYear&&m===curMonth&&!isNaN(supInput))?supInput:null):null;
+    const has=!!c&&(c.ing>0||c.pagos>0);months.push({m,y,lbl:ML[m],cur:y===curYear&&m===curMonth,has,v:has?c.disp:0});}
+  const ct=$('dd-chart-title');ct.textContent=fmt(disp);ct.style.color=disp<0?'#f87171':'#6c8fff';
+  const conDatos=months.filter(x=>x.has),prev=months[4],chip=$('dd-chart-chip');
+  const avg=conDatos.length?conDatos.reduce((a,x)=>a+x.v,0)/conDatos.length:0;
+  $('dd-chart-sub').textContent=conDatos.length>1?'Promedio de '+conDatos.length+' meses: '+fmt(avg):MESES_DD[curMonth];
+  if(prev.has&&months[5].has){const dif=disp-prev.v;chip.style.display='';chip.textContent=(dif>=0?'↑ ':'↓ ')+fmt(Math.abs(dif))+' vs '+prev.lbl;
+    chip.style.background=dif>=0?'rgba(52,211,153,.12)':'rgba(248,113,113,.12)';chip.style.color=dif>=0?'#34d399':'#f87171';}
+  else chip.style.display='none';
+  const chart=$('dd-chart');
+  if(conDatos.length<2){chart.className='';chart.innerHTML='<div class="dd-chart-empty">El historial aparece a medida que cargás meses.<br>Hace falta al menos un mes anterior con datos para comparar.</div>';}
+  else{chart.className='dd-chart';
+    const maxP=Math.max(0,...conDatos.map(x=>x.v)),maxN=Math.max(0,...conDatos.map(x=>-x.v)),span=(maxP+maxN)||1;
+    const zero=maxP/span*100; // % desde arriba donde está el cero
+    chart.innerHTML=months.map(x=>{let bar;
+      if(!x.has)bar=`<div class="dd-col-bar nodata" style="top:calc(${zero}% - 3px)" title="${x.lbl}: sin datos"></div>`;
+      else{const h=Math.max(Math.abs(x.v)/span*100,1.5);const col=x.v<0?(x.cur?'#f87171':'rgba(248,113,113,.4)'):(x.cur?'#6c8fff':'rgba(108,143,255,.32)');
+        bar=x.v>=0?`<div class="dd-col-bar" style="bottom:${100-zero}%;height:${h}%;background:${col}" title="${x.lbl}: ${fmt(x.v)}"></div>`
+                  :`<div class="dd-col-bar" style="top:${zero}%;height:${h}%;background:${col}" title="${x.lbl}: ${fmt(x.v)}"></div>`;}
+      return `<div class="dd-col"><div class="dd-col-plot"><div class="dd-col-zero" style="top:${zero}%"></div>${bar}</div><div class="dd-bar-lbl ${x.cur?'cur':''}">${x.lbl}</div></div>`;}).join('');}
+
+  // ── Distribución: siempre suma 100% ──
+  const base=Math.max(ing,pagos);
+  $('dd-dist-base').textContent=base<=0?'':pagos>ing?'Sobre el total pagado: los pagos superan los ingresos':'Sobre tus ingresos ('+fmt(ing)+')';
+  const items=[{lbl:'Tarjetas pagadas',v:tcPag,color:'#a78bfa'},{lbl:'Servicios',v:sv,color:'#fbbf24'}];
+  if(otros>0)items.push({lbl:'Super y gastos extra',v:otros,color:'#5dcaa5'});
+  if(disp>=0)items.push({lbl:'Disponible',v:disp,color:'#6c8fff'});
+  // Porcentajes por mayor resto: siempre suman exactamente 100
+  const raw=items.map(d=>base>0?d.v/base*100:0),fl=raw.map(Math.floor);let falta=100-fl.reduce((x,y)=>x+y,0);
+  raw.map((r,i)=>[r-fl[i],i]).sort((x,y)=>y[0]-x[0]).forEach(([,i])=>{if(falta>0&&base>0){fl[i]++;falta--;}});
+  let html=base<=0?'<div class="dd-empty">Sin datos este mes</div>':items.map((d,i)=>`<div class="dd-dist-row"><div class="dd-dist-dot" style="background:${d.color}"></div><div class="dd-dist-name">${d.lbl}</div><div class="dd-dist-amt">${fmt(d.v)}</div><div class="dd-dist-pct">${fl[i]}%</div><div class="dd-dist-track"><div class="dd-dist-fill" style="width:${raw[i]}%;background:${d.color}"></div></div></div>`).join('');
+  if(disp<0&&base>0){const cub=Math.round(ing/pagos*100);
+    html+=`<div class="dd-cover"><div class="dd-cover-lbl"><span>Cubierto con ingresos <b>${cub}%</b></span><span style="color:#f87171">Sin cubrir <b>${fmt(-disp)}</b> · ${100-cub}%</span></div><div class="dd-cover-bar"><div style="width:${ing/pagos*100}%;background:#34d399"></div><div style="flex:1;background:#f87171"></div></div></div>`;}
+  $('dd-dist-rows').innerHTML=html;
 }
 function totalIngresosFrom(s){if(!s)return 0;const base=nv(s.sueldo);const extras=(s.extras||[]).reduce((a,e)=>a+nv(e.amt),0);return base+extras;}
 async function driveReq(url,opts={}){const r=await fetch(url,{...opts,headers:{...opts.headers,Authorization:'Bearer '+accessToken}});if(r.status===401){setSyncInfo('Sesión expirada','err');return null;}return r;}
