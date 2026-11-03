@@ -1,61 +1,90 @@
-# Bot Mis Finanzas — Telegram
+# Mis Finanzas
 
-Bot personal de finanzas con Google Drive como backend.
+- **Web:** `index.html` (GitHub Pages) — datos en tu Google Drive, carpeta `Finanzas/`.
+- **Bot de Telegram:** `bot.py` — corre en una PC con Linux, sin abrir puertos ni necesitar IP pública.
 
-## Deploy en Railway
+## Bot de Telegram en Linux
 
-### 1. Subir a GitHub
-Creá un repo nuevo en GitHub y subí estos archivos.
+El bot busca los mensajes en Telegram (modo *polling*), así que sólo hace conexiones salientes a
+`api.telegram.org` y a Google. El único servidor que levanta escucha en `127.0.0.1:8080` y sirve
+únicamente para recibir el regreso de Google cuando conectás tu cuenta.
 
-### 2. Crear proyecto en Railway
-1. Entrá a [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
-2. Seleccioná el repo que acabás de crear
+### Requisitos
+- Linux con **systemd** (Ubuntu, Debian, Mint, Fedora, Raspberry Pi OS, etc.)
+- **Python 3.10+** con `venv` (`sudo apt install python3 python3-venv git`)
+- La PC prendida para que el bot responda (Telegram guarda los mensajes hasta 24 h mientras está apagada)
 
-### 3. Configurar variables de entorno en Railway
-En el panel de Railway → tu proyecto → Variables, agregá:
+### 1. Preparar Telegram y Google (una sola vez)
+1. **Token del bot:** en Telegram, @BotFather → `/mybots` → tu bot → *API Token* → *Revoke current token*.
+   Guardá el token nuevo.
+2. **Google Cloud** → APIs y servicios → Credenciales → tu cliente OAuth:
+   - En **URIs de redirección autorizados** agregá `http://localhost:8080/oauth/callback`
+     (y borrá la de Railway si sigue).
+   - Copiá el **Secreto del cliente**.
 
+### 2. Instalar
+```bash
+git clone https://github.com/ezefacosta-wyk/finanzas.git
+cd finanzas
+bash deploy/instalar.sh          # la primera vez crea el archivo .env y se detiene
+nano .env                        # completá BOT_TOKEN y GOOGLE_CLIENT_SECRET
+bash deploy/instalar.sh          # instala dependencias y deja el bot corriendo como servicio
+```
+El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para registrar el servicio.
+
+### 3. Autorizarte y conectar Google
+1. Mandale `/start` al bot. Como todavía no estás autorizado, te responde **"Tu ID de chat es: …"**.
+2. Poné ese número en `.env` → `ALLOWED_CHAT_IDS=123456789` y reiniciá:
+   `sudo systemctl restart finanzas-bot`
+3. Mandale `/start` de nuevo y abrí el link **en el navegador de esa misma PC**. Al aceptar en Google,
+   la página dice "¡Listo!" y el bot te confirma por Telegram.
+   - **Si abrís el link en otro dispositivo** (o la PC no tiene pantalla): al final Google te lleva a una
+     página de `localhost` que no carga. Copiá la dirección completa de esa página y mandásela al bot:
+     `/codigo http://localhost:8080/oauth/callback?state=...&code=...`
+   - Alternativa por SSH desde otra compu: `ssh -L 8080:localhost:8080 usuario@pc-del-bot` y abrí el link ahí.
+
+### Uso diario
+| Para… | Comando |
+|---|---|
+| Ver el log en vivo | `journalctl -u finanzas-bot -f` |
+| Reiniciar / detener | `sudo systemctl restart finanzas-bot` / `sudo systemctl stop finanzas-bot` |
+| Actualizar a la última versión | `bash deploy/actualizar.sh` |
+| Desinstalar | `sudo systemctl disable --now finanzas-bot && sudo rm /etc/systemd/system/finanzas-bot.service` |
+
+- Si la PC se suspende, el bot deja de responder: en *Energía* configurá **no suspender**.
+- **Notificaciones:** día 28 desde las 20 h (cierre de mes) y día 1 desde las 9 h (resumen del mes).
+  Si la PC estaba apagada a esa hora, se envían al prenderla (hasta fin de mes / hasta el día 5).
+
+### Seguridad
+- `.env` (token y secreto) y `data/` (tu sesión de Google) quedan sólo en tu PC con permisos `600`/`700`
+  y están en `.gitignore`: **nunca** se suben al repo.
+- El bot sólo atiende a los chats de `ALLOWED_CHAT_IDS`.
+- El servicio corre con tu usuario, sin privilegios, y sólo puede escribir en `data/`.
+
+### Configuración (`.env`)
 | Variable | Valor |
 |---|---|
-| `BOT_TOKEN` | Tu token de BotFather |
-| `GOOGLE_CLIENT_ID` | `40977181531-47pauk08197779rjmrccasm8omdpl5kk.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | El secret de tu OAuth client en Google Cloud |
-| `REDIRECT_URI` | `https://TU-APP.railway.app/oauth/callback` (lo sabés una vez que Railway te da la URL) |
-| `PORT` | `8080` |
-| `ALLOWED_CHAT_IDS` | Tu ID de chat de Telegram (varios separados por coma). Vacío = el bot no atiende a nadie. Para saber tu ID, escribile `/start` al bot: si no estás autorizado te lo responde. |
-| `WEBHOOK_SECRET` | Opcional. Secreto que Telegram envía en cada webhook; si no se define, se deriva del `BOT_TOKEN`. |
+| `BOT_TOKEN` | Token de @BotFather |
+| `GOOGLE_CLIENT_ID` | Ya viene completo |
+| `GOOGLE_CLIENT_SECRET` | Secreto del cliente OAuth |
+| `ALLOWED_CHAT_IDS` | Tu ID de chat (varios separados por coma) |
+| `PORT` | Opcional, por defecto `8080` (si lo cambiás, actualizá la URI en Google Cloud) |
+| `MODE` | Opcional: `polling` (por defecto) o `webhook` para un servidor con URL pública |
 
-> ⚠ El repo es público: nunca pongas tokens ni secretos en archivos del repo (`.env.example` es sólo una plantilla).
-
-### 4. Agregar Redirect URI en Google Cloud
-1. Google Cloud Console → tu proyecto → APIs & Servicios → Credenciales
-2. Clic en tu OAuth 2.0 Client ID
-3. Authorized redirect URIs → Agregar: `https://TU-APP.railway.app/oauth/callback`
-
-### 5. Obtener GOOGLE_CLIENT_SECRET
-1. Google Cloud Console → APIs & Servicios → Credenciales
-2. Clic en tu OAuth 2.0 Client ID
-3. Copiar el campo "Client secret"
-
-## Comandos
-
+## Comandos del bot
 | Comando | Descripción |
 |---|---|
-| `/start` | Conectar con Google Drive (OAuth) |
+| `/start` | Conectar con Google Drive |
 | `/gasto MONTO CATEGORÍA desc` | Registrar gasto |
 | `/ingreso MONTO descripción` | Registrar ingreso |
 | `/tarjeta NOMBRE MONTO` | Registrar pago de tarjeta |
-| `/resumen` | Resumen del mes actual |
-| `/historial` | Selector de mes con botones |
-| `/comparar` | Balance vs mes anterior |
+| `/servicios`, `/comprobante`, `/vercomprobantes` | Servicios y comprobantes |
+| `/resumen`, `/historial`, `/comparar` | Resúmenes |
 | `/ayuda` | Lista de comandos |
 
-## Categorías para /gasto
-`super` `mercado` `luz` `gas` `expensas` `alquiler` `internet` `celular` `obra` `extra`
-
-## Notificaciones automáticas
-- **Día 28, 20hs (ART):** Recordatorio de cierre de mes
-- **Día 1, 9hs (ART):** Resumen del mes cerrado + aviso de nuevo mes
-
-## Datos
-Los datos se guardan en Google Drive de cada usuario, en la carpeta `MisFinanzas/finanzas_data.json`.
-El formato es el mismo que usa la web, por lo que todo queda sincronizado.
+## Datos en Drive
+```
+Finanzas/
+├── Comprobantes/<servicio>/...
+└── Datos/   (finanzas_AAAA_MM.json, servicios.json)
+```

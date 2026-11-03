@@ -1,0 +1,34 @@
+# Plantilla de servicio systemd. instalar.sh reemplaza __USUARIO__ y __DIR__ y la copia a
+# /etc/systemd/system/finanzas-bot.service
+[Unit]
+Description=Bot de Telegram - Mis Finanzas
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=__USUARIO__
+WorkingDirectory=__DIR__
+ExecStart=__DIR__/venv/bin/python __DIR__/bot.py
+Restart=always
+RestartSec=10
+# Apagado prolijo: el bot atiende SIGTERM y termina de procesar antes de salir
+KillSignal=SIGTERM
+TimeoutStopSec=20
+Environment=PYTHONUNBUFFERED=1
+
+# Endurecimiento: el bot sólo puede escribir en su carpeta de datos
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=__DIR__/data
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

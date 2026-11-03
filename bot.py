@@ -3,13 +3,14 @@ Bot de Telegram — Mis Finanzas
 Stack: python-telegram-bot 20.x, Google Drive API (OAuth por usuario)
 """
 
-import os, json, re, io, logging, asyncio, hmac, hashlib, time
+import os, sys, json, re, io, logging, asyncio, hmac, hashlib, time, signal, tempfile
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor
 
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, LinkPreviewOptions
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -25,11 +26,40 @@ from aiohttp import web
 # ──────────────────────────────────────────────
 # Config
 # ──────────────────────────────────────────────
-BOT_TOKEN   = os.environ["BOT_TOKEN"]
-CLIENT_ID   = os.environ["GOOGLE_CLIENT_ID"]
-CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
-REDIRECT_URI  = os.environ["REDIRECT_URI"]          # https://tu-app.railway.app/oauth/callback
-PORT          = int(os.environ.get("PORT", 8080))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _load_env(path: str):
+    """Carga KEY=VALOR de un archivo .env (sin dependencias). No pisa variables ya definidas."""
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+_load_env(os.path.join(BASE_DIR, ".env"))
+
+def _required(name: str) -> str:
+    v = os.environ.get(name, "").strip()
+    if not v or v.startswith("PEGAR_") or v.startswith("COMPLETAR"):
+        sys.exit(f"Falta configurar {name} en el archivo .env ({os.path.join(BASE_DIR, '.env')})")
+    return v
+
+BOT_TOKEN     = _required("BOT_TOKEN")
+CLIENT_ID     = _required("GOOGLE_CLIENT_ID")
+CLIENT_SECRET = _required("GOOGLE_CLIENT_SECRET")
+PORT          = int(os.environ.get("PORT") or 8080)
+# polling: el bot busca los mensajes en Telegram (no necesita IP pública ni abrir puertos)
+# webhook: Telegram le envía los mensajes a una URL pública (como en Railway)
+MODE          = (os.environ.get("MODE") or "polling").strip().lower()
+# En polling el servidor web sólo atiende el regreso de Google, y sólo desde esta misma PC
+BIND_HOST     = os.environ.get("BIND_HOST") or ("127.0.0.1" if MODE == "polling" else "0.0.0.0")
+REDIRECT_URI  = os.environ.get("REDIRECT_URI") or f"http://localhost:{PORT}/oauth/callback"
+WEBHOOK_URL   = os.environ.get("WEBHOOK_URL") or REDIRECT_URI.replace("/oauth/callback", "")
+DATA_DIR      = os.environ.get("DATA_DIR") or os.path.join(BASE_DIR, "data")
 TZ = ZoneInfo("America/Buenos_Aires")
 
 # ── Seguridad ──
@@ -74,15 +104,31 @@ CATEGORIAS_FIJAS = {
     "extra": "Gasto Extra",
 }
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)   # en polling registraría cada consulta a Telegram
 log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # Almacenamiento simple en memoria + JSON local
-# (en Railway se puede usar un volumen o Redis)
+# (en data/, con permisos sólo para el usuario que corre el bot)
 # ──────────────────────────────────────────────
-USERS_FILE  = "users.json"
-STATES_FILE = "oauth_states.json"
+os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+USERS_FILE  = os.path.join(DATA_DIR, "users.json")         # sesión de Google (refresh token): permisos 600
+STATES_FILE = os.path.join(DATA_DIR, "oauth_states.json")
+NOTIF_FILE  = os.path.join(DATA_DIR, "notificaciones.json") # qué notificaciones ya se enviaron
+
+def _write_private_json(path: str, obj):
+    """Escribe JSON de forma atómica y sólo legible por el usuario dueño (600)."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(obj, f, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except Exception:
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
 
 def load_users() -> dict:
     if os.path.exists(USERS_FILE):
@@ -91,8 +137,7 @@ def load_users() -> dict:
     return {}
 
 def save_users(users: dict):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
+    _write_private_json(USERS_FILE, users)
 
 def load_states() -> dict:
     if os.path.exists(STATES_FILE):
@@ -101,8 +146,7 @@ def load_states() -> dict:
     return {}
 
 def save_states(states: dict):
-    with open(STATES_FILE, "w") as f:
-        json.dump(states, f, indent=2)
+    _write_private_json(STATES_FILE, states)
 
 users_db: dict = load_users()   # { telegram_id: {creds, name, ...} }
 
@@ -574,29 +618,8 @@ def make_oauth_url(chat_id: int) -> str:
     save_states(states)
     return url
 
-async def oauth_callback(request: web.Request) -> web.Response:
-    """Endpoint HTTP que recibe el callback de Google OAuth."""
-    state = request.rel_url.query.get("state", "")
-    code  = request.rel_url.query.get("code", "")
-
-    # Leer state desde disco (sobrevive reinicios del proceso)
-    states = load_states()
-    entry = states.pop(state, None) if state else None
-    if entry is not None:
-        save_states(states)
-    chat_id = None
-    if isinstance(entry, dict) and time.time() - entry.get("ts", 0) < OAUTH_STATE_TTL:
-        chat_id = entry.get("chat_id")
-    if chat_id is not None and not is_allowed(chat_id):
-        chat_id = None
-
-    if not chat_id or not code:
-        return web.Response(
-            text="<html><body><h2>❌ Error: sesión expirada o inválida. Volvé a Telegram y usá /start de nuevo.</h2></body></html>",
-            content_type="text/html",
-            status=400,
-        )
-
+def _exchange_code(state: str, code: str):
+    """Cambia el código de Google por credenciales (bloqueante: se corre en un hilo)."""
     flow = Flow.from_client_config(
         {
             "web": {
@@ -611,19 +634,32 @@ async def oauth_callback(request: web.Request) -> web.Response:
         redirect_uri=REDIRECT_URI,
         state=state,
     )
-    import os as _os
-    _os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
     flow.fetch_token(code=code)
     creds = flow.credentials
+    info = build("oauth2", "v2", credentials=creds).userinfo().get().execute()
+    return creds, info.get("name", "Usuario")
 
-    # Obtener nombre del usuario
-    svc = build("oauth2", "v2", credentials=creds)
-    info = svc.userinfo().get().execute()
-    name = info.get("name", "Usuario")
-
+async def complete_oauth(bot, state: str, code: str, expected_chat: int | None = None) -> tuple[bool, str]:
+    """Valida el state (vigente, de un chat autorizado y, si se indica, del mismo chat) y guarda la sesión."""
+    states = load_states()
+    entry = states.pop(state, None) if state else None
+    if entry is not None:
+        save_states(states)
+    chat_id = None
+    if isinstance(entry, dict) and time.time() - entry.get("ts", 0) < OAUTH_STATE_TTL:
+        chat_id = entry.get("chat_id")
+    if chat_id is not None and (not is_allowed(chat_id) or (expected_chat is not None and int(chat_id) != int(expected_chat))):
+        chat_id = None
+    if not chat_id or not code:
+        return False, "sesión expirada o inválida"
+    try:
+        creds, name = await _run_in_executor(_exchange_code, state, code)
+    except Exception as e:
+        log.warning(f"No se pudo completar la conexión con Google: {e}")
+        return False, "Google rechazó el código (puede haber vencido)"
     uid = str(chat_id)
     # Preservar el refresh_token viejo si Google no mandó uno nuevo
-    # (Google solo envía refresh_token en el primer authorization)
     old_refresh_token = users_db.get(uid, {}).get("refresh_token")
     users_db[uid] = {
         "token": creds.token,
@@ -632,18 +668,43 @@ async def oauth_callback(request: web.Request) -> web.Response:
         "scope_version": 4,  # drive.file en raíz visible (v4)
     }
     save_users(users_db)
-
-    # Notificar al usuario por Telegram
-    app = request.app["bot_app"]
-    await app.bot.send_message(
+    await bot.send_message(
         chat_id=chat_id,
         text=f"✅ ¡Hola {name}! Tu cuenta de Google quedó conectada.\n\n"
              f"Ya podés usar todos los comandos. Escribí /ayuda para ver qué podés hacer.",
     )
+    return True, name
+
+async def oauth_callback(request: web.Request) -> web.Response:
+    """Endpoint HTTP que recibe el regreso de Google (http://localhost:PUERTO/oauth/callback)."""
+    state = request.rel_url.query.get("state", "")
+    code  = request.rel_url.query.get("code", "")
+    ok, msg = await complete_oauth(request.app["bot_app"].bot, state, code)
+    if not ok:
+        return web.Response(
+            text=f"<html><body><h2>❌ Error: {msg}. Volvé a Telegram y usá /start de nuevo.</h2></body></html>",
+            content_type="text/html", status=400)
     return web.Response(
         text="<html><body><h2>✅ ¡Listo! Podés cerrar esta pestaña y volver a Telegram.</h2></body></html>",
-        content_type="text/html",
-    )
+        content_type="text/html")
+
+async def cmd_codigo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Para cuando el navegador no está en la PC del bot: se pega la dirección a la que volvió Google."""
+    texto = " ".join(ctx.args or [])
+    q = parse_qs(urlparse(texto).query) if "?" in texto else {}
+    state, code = (q.get("state") or [""])[0], (q.get("code") or [""])[0]
+    try:
+        await update.message.delete()   # el mensaje contiene un código de un solo uso: no lo dejamos en el chat
+    except Exception:
+        pass
+    if not state or not code:
+        await update.effective_chat.send_message(
+            "Pegá la dirección completa de la página a la que te llevó Google, por ejemplo:\n"
+            f"/codigo {REDIRECT_URI}?state=...&code=...")
+        return
+    ok, msg = await complete_oauth(ctx.bot, state, code, expected_chat=update.effective_chat.id)
+    if not ok:
+        await update.effective_chat.send_message(f"❌ No se pudo conectar: {msg}. Usá /start para generar un link nuevo.")
 
 # ──────────────────────────────────────────────
 # Handlers de comandos
@@ -669,9 +730,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "¡Hola! Para empezar, conectá tu cuenta de Google Drive "
         "donde se guardarán tus datos de finanzas.\n\n"
-        f"👉 [Autorizar Google Drive]({url})",
+        f"👉 [Autorizar Google Drive]({url})"
+        + ("\n\n_Si abrís el link desde otro dispositivo y al final la página no carga, copiá la dirección "
+           "completa de esa página y mandámela así:_ `/codigo dirección`" if MODE == "polling" else ""),
         parse_mode="Markdown",
-        disable_web_page_preview=True,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
 async def cmd_desconectar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1349,13 +1412,30 @@ async def callback_dl_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 # ──────────────────────────────────────────────
 # Notificaciones automáticas
 # ──────────────────────────────────────────────
+def _notif_load() -> dict:
+    try:
+        with open(NOTIF_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _notif_mark(kind: str, ym: str):
+    d = _notif_load(); d[kind] = ym
+    _write_private_json(NOTIF_FILE, d)
+
+def _destinatarios() -> list[str]:
+    return [u for u in users_db if is_allowed(u)]
+
 async def notif_cierre(ctx: ContextTypes.DEFAULT_TYPE):
-    """Día 28, 20hs: recordatorio de cierre."""
-    n = now_ar()
-    if n.day != 28:
+    """Desde el día 28 a las 20hs: recordatorio de cierre (una vez por mes; si la PC estaba
+    apagada a esa hora, se envía cuando vuelve a prender, hasta fin de mes)."""
+    n = now_ar(); ym = f"{n.year}-{n.month:02d}"
+    if not (n.day > 28 or (n.day == 28 and n.hour >= 20)):
+        return
+    if _notif_load().get("cierre") == ym or not _destinatarios():
         return
     label = key_label(current_key())
-    for uid in [u for u in users_db if is_allowed(u)]:
+    for uid in _destinatarios():
         try:
             await ctx.bot.send_message(
                 chat_id=int(uid),
@@ -1369,17 +1449,21 @@ async def notif_cierre(ctx: ContextTypes.DEFAULT_TYPE):
             )
         except Exception as e:
             log.warning(f"No se pudo notificar a {uid}: {e}")
+    _notif_mark("cierre", ym)
 
 async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
-    """Día 1, 9hs: resumen del mes cerrado + aviso de nuevo mes."""
-    n = now_ar()
-    if n.day != 1:
+    """Desde el día 1 a las 9hs: resumen del mes cerrado + aviso de nuevo mes (una vez por mes;
+    si la PC estaba apagada, se envía al prender, hasta el día 5)."""
+    n = now_ar(); ym = f"{n.year}-{n.month:02d}"
+    if not (1 < n.day <= 5 or (n.day == 1 and n.hour >= 9)):
+        return
+    if _notif_load().get("nuevo_mes") == ym or not _destinatarios():
         return
     # El mes anterior es el que cerró
     ant_key = prev_key()
     nuevo_label = key_label(current_key())
 
-    for uid in [u for u in users_db if is_allowed(u)]:
+    for uid in _destinatarios():
         try:
             creds = creds_from_dict(users_db[uid])
             data = await read_drive_data_async(creds)
@@ -1396,6 +1480,7 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
             )
         except Exception as e:
             log.warning(f"No se pudo notificar a {uid}: {e}")
+    _notif_mark("nuevo_mes", ym)
 
 # ──────────────────────────────────────────────
 # Setup de comandos en el menú de Telegram
@@ -1434,7 +1519,9 @@ async def auth_gate(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────────
 # Servidor web: webhook de Telegram + OAuth callback
 # ──────────────────────────────────────────────
-def make_web_app(application) -> web.Application:
+def make_web_app(application, webhook: bool | None = None) -> web.Application:
+    if webhook is None:
+        webhook = MODE == "webhook"
     async def telegram_webhook(request: web.Request) -> web.Response:
         """Recibe updates de Telegram. Rechaza todo pedido sin el secreto que sólo Telegram conoce."""
         got = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
@@ -1451,7 +1538,8 @@ def make_web_app(application) -> web.Application:
 
     web_app = web.Application(client_max_size=1024 * 1024)
     web_app["bot_app"] = application
-    web_app.router.add_post(WEBHOOK_PATH, telegram_webhook)
+    if webhook:
+        web_app.router.add_post(WEBHOOK_PATH, telegram_webhook)
     web_app.router.add_get("/oauth/callback", oauth_callback)
     web_app.router.add_get("/health", lambda r: web.Response(text="ok"))
     return web_app
@@ -1460,21 +1548,17 @@ def make_web_app(application) -> web.Application:
 # Main
 # ──────────────────────────────────────────────
 def main():
-    WEBHOOK_URL = os.environ.get("WEBHOOK_URL", REDIRECT_URI.replace("/oauth/callback", ""))
-
-    application = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .post_init(post_init)
-        .updater(None)   # Sin updater propio — usamos webhook vía aiohttp
-        .build()
-    )
+    builder = Application.builder().token(BOT_TOKEN).post_init(post_init)
+    if MODE == "webhook":
+        builder = builder.updater(None)   # los mensajes llegan por el webhook (aiohttp)
+    application = builder.build()
 
     # Filtro global (grupo -1, corre antes que todo): sólo chats autorizados
     application.add_handler(TypeHandler(Update, auth_gate), group=-1)
 
     # Handlers
     application.add_handler(CommandHandler("start",           cmd_start))
+    application.add_handler(CommandHandler("codigo",          cmd_codigo))
     application.add_handler(CommandHandler("desconectar",     cmd_desconectar))
     application.add_handler(CommandHandler("ayuda",           cmd_ayuda))
     application.add_handler(CommandHandler("gasto",           cmd_gasto))
@@ -1503,40 +1587,53 @@ def main():
         msg_recibir_comprobante
     ))
 
-    # Job queue — notificaciones automáticas (hora Argentina = UTC-3)
+    # Notificaciones: se revisa cada 30 minutos si corresponde enviar (día 28 desde las 20hs y día 1
+    # desde las 9hs, hora Argentina). Cada una se envía una sola vez por mes; si la PC estuvo apagada,
+    # sale al volver a prender.
     jq = application.job_queue
-    # Día 28 a las 20:00 ART = 23:00 UTC
-    jq.run_daily(notif_cierre,    time=__import__("datetime").time(23, 0), days=(0,1,2,3,4,5,6))
-    # Día 1 a las 09:00 ART = 12:00 UTC
-    jq.run_daily(notif_nuevo_mes, time=__import__("datetime").time(12, 0), days=(0,1,2,3,4,5,6))
+    jq.run_repeating(notif_cierre,    interval=1800, first=30)
+    jq.run_repeating(notif_nuevo_mes, interval=1800, first=45)
 
     web_app = make_web_app(application)
 
     async def run():
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):   # systemctl stop / Ctrl+C
+            try:
+                loop.add_signal_handler(sig, stop.set)
+            except NotImplementedError:
+                pass
+
         await application.initialize()
         await application.start()
-
-        # Registrar webhook en Telegram
-        webhook_endpoint = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
-        await application.bot.set_webhook(
-            url=webhook_endpoint,
-            secret_token=WEBHOOK_SECRET,
-            drop_pending_updates=True,
-        )
-        log.info(f"Webhook registrado: {webhook_endpoint}")
+        if MODE == "webhook":
+            webhook_endpoint = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
+            await application.bot.set_webhook(url=webhook_endpoint, secret_token=WEBHOOK_SECRET,
+                                              drop_pending_updates=True)
+            log.info(f"Modo webhook: {webhook_endpoint}")
+        else:
+            # Borra cualquier webhook viejo y procesa los mensajes que Telegram guardó mientras estaba apagado
+            await application.updater.start_polling(drop_pending_updates=False,
+                                                    allowed_updates=Update.ALL_TYPES)
+            log.info("Modo polling: recibiendo mensajes de Telegram")
         if not ALLOWED_CHAT_IDS:
             log.warning("ALLOWED_CHAT_IDS está vacío: el bot no atiende a nadie hasta configurarlo.")
 
         runner = web.AppRunner(web_app)
         await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", PORT)
-        await site.start()
-        log.info(f"Bot corriendo en el puerto {PORT}")
+        await web.TCPSite(runner, BIND_HOST, PORT).start()
+        log.info(f"Esperando el regreso de Google en {REDIRECT_URI} (escuchando en {BIND_HOST}:{PORT})")
 
         try:
-            await asyncio.Event().wait()
+            await stop.wait()
         finally:
-            await application.bot.delete_webhook()
+            log.info("Deteniendo el bot…")
+            if MODE == "webhook":
+                await application.bot.delete_webhook()
+            elif application.updater and application.updater.running:
+                await application.updater.stop()
+            await runner.cleanup()
             await application.stop()
             await application.shutdown()
 

@@ -1,2 +1,7 @@
 __pycache__/
 *.bak
+# Bot en Linux: configuración y datos locales (contienen secretos) — nunca al repo
+.env
+data/
+venv/
+.venv/
