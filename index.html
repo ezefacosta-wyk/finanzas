@@ -444,6 +444,9 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 /* ── Resumen desktop v2 ── */
 .dd-wrap{width:100%;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 .dd-page-title{font-size:13px;font-weight:700;color:#c8d0e0;margin-left:6px}
+.dd-export-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);color:#c8d0e0;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+.dd-export-btn:hover,.dd-export-btn:focus-visible{background:rgba(108,143,255,.12);border-color:rgba(108,143,255,.4);color:#e2e6f0}
+.dd-export-btn i{font-size:15px;color:#6c8fff}
 .dd-month-btn{width:32px;height:32px;font-size:15px}
 .dd-sec-lbl,.dd-kpi-lbl{font-size:11px}
 .dd-kpi-strip{grid-template-columns:1.35fr 1fr 1fr 1fr}
@@ -713,6 +716,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
       <span class="dd-menu-icon"><span></span><span></span><span></span></span>Finanzas
     </button>
     <span class="dd-page-title">Resumen</span>
+    <button class="dd-export-btn" onclick="exportResumenPDF()" title="Exportar el resumen del mes (se abre listo para guardar como PDF)"><i class="ti ti-file-type-pdf"></i> Exportar resumen</button>
     <div class="dd-topbar-right">
       <div class="dd-month-nav">
         <button class="dd-month-btn" onclick="changeMonth(-1)" aria-label="Mes anterior">‹</button>
@@ -1223,6 +1227,8 @@ function closeDrawer(){const d=document.getElementById('navDrawer'),o=document.g
 function navTo(name){
   // En desktop: si estamos en el dashboard, salir a mobile primero
   if(isDesktop()&&document.getElementById('desktopDashboard').classList.contains('visible')){
+    // Ya estás en el Resumen (dashboard): sólo cerrar el menú
+    if(name==='resumen'){closeDrawer();return;}
     exitDesktop(name);
     closeDrawer();
     return;
