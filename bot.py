@@ -3,7 +3,7 @@ Bot de Telegram — Mis Finanzas
 Stack: python-telegram-bot 20.x, Google Drive API (OAuth por usuario)
 """
 
-import os, sys, json, re, io, logging, asyncio, hmac, hashlib, time, signal, tempfile
+import os, sys, json, re, io, logging, asyncio, hmac, hashlib, time, signal, tempfile, threading
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
@@ -156,20 +156,24 @@ users_db: dict = load_users()   # { telegram_id: {creds, name, ...} }
 def now_ar() -> datetime:
     return datetime.now(TZ)
 
-def current_key() -> str:
+# En el bot los meses se manejan como (año, mes) con mes de 1 a 12.
+def mes_actual() -> tuple[int, int]:
     n = now_ar()
-    return f"fin4_{n.year}_{n.month}"
+    return n.year, n.month
 
-def prev_key() -> str:
-    n = now_ar()
-    m, y = n.month - 1, n.year
-    if m == 0:
-        m, y = 12, y - 1
-    return f"fin4_{y}_{m}"
+def mes_anterior(y: int, m: int) -> tuple[int, int]:
+    return (y - 1, 12) if m == 1 else (y, m - 1)
 
-def key_label(key: str) -> str:
-    parts = key.split("_")
-    return f"{MESES[int(parts[2])-1]} {parts[1]}"
+def mes_label(y: int, m: int) -> str:
+    return f"{MESES[m-1]} {y}"
+
+def md(texto) -> str:
+    """Escapa texto del usuario (nombres de servicios, tarjetas, etc.) para parse_mode=Markdown.
+    Sin esto, un nombre con _ o * hace que Telegram rechace el mensaje entero."""
+    s = str(texto)
+    for ch in ("_", "*", "`", "["):
+        s = s.replace(ch, "\\" + ch)
+    return s
 
 # ──────────────────────────────────────────────
 # Google Drive helpers
@@ -291,23 +295,271 @@ def find_data_file(drive, name: str, root_id: str) -> tuple[str | None, str]:
         return old, data_id
     return None, data_id
 
-# ── finanzas_data.json ──────────────────────────────────────────────────────
+# ── Datos de cada mes ───────────────────────────────────────────────────────
+# Son los mismos archivos que usa la web: Finanzas/Datos/finanzas_AAAA_MM.json (MM = 01..12),
+# con el formato de la web:
+#   { sueldo, extras:[{name,amt}], superAmt, gastosExtra:[{name,amt,fecha}],
+#     servicios:[{id,name,amt}],
+#     tarjetas:[{name,total,minimo,usdTotal,usdMinimo,tcambio,pagado,extraPagos:[{name,amt}],detalle:[]}] }
+# La web suma los amt de las listas sin convertirlos, así que siempre se guardan como números.
+#
+# finanzas_data.json es el archivo viejo (todos los meses juntos). Ahí la web guardaba cada mes
+# como texto JSON con la clave fin4_AAAA_M (mes de 0 a 11) y las versiones anteriores del bot
+# guardaban objetos con otro formato bajo fin4_AAAA_M (mes de 1 a 12). Se usa sólo para leer
+# meses que todavía no tienen su archivo, y para pasar una vez lo que había cargado el bot.
 
-def read_drive_data(creds: Credentials) -> dict:
-    drive = get_drive(creds)
-    root_id = get_root_folder(drive)
+MONTH_KEY_RE = re.compile(r"^fin4_(\d{4})_(\d{1,2})$")
+
+def month_file_name(y: int, m: int) -> str:
+    return f"finanzas_{y}_{m:02d}.json"
+
+def nv(v) -> float:
+    """Número de un monto guardado ('' / None / texto inválido → 0), como nv() de la web."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    return f if f == f and f not in (float("inf"), float("-inf")) else 0.0
+
+def nueva_tarjeta(name: str = "") -> dict:
+    return {"name": name, "total": "", "minimo": "", "usdTotal": "", "usdMinimo": "",
+            "tcambio": "", "pagado": "", "extraPagos": [], "detalle": []}
+
+def tc_name(t: dict, i: int) -> str:
+    return (t.get("name") or "").strip() or f"Tarjeta {i+1}"
+
+def mes_vacio(servicios_perp: list, anterior: dict | None = None) -> dict:
+    """Mes nuevo. Las tarjetas toman los nombres del mes anterior (sin montos)."""
+    nombres = [t.get("name") for t in (anterior or {}).get("tarjetas") or []
+               if isinstance(t, dict) and (t.get("name") or "").strip()]
+    return {
+        "sueldo": "", "extras": [],
+        "tarjetas": [nueva_tarjeta(n) for n in nombres] or [nueva_tarjeta(), nueva_tarjeta()],
+        "servicios": [{"id": s["id"], "name": s["name"], "amt": 0} for s in servicios_perp],
+        "superAmt": "", "gastosExtra": [],
+    }
+
+def normalizar_mes(st: dict, servicios_perp: list) -> dict:
+    """Completa lo que falte para que la web pueda abrir el mes y agrega los servicios nuevos."""
+    st.setdefault("sueldo", "")
+    st.setdefault("superAmt", "")
+    for k in ("extras", "gastosExtra", "servicios", "tarjetas"):
+        st[k] = [x for x in (st.get(k) or []) if isinstance(x, dict)]
+    for lst in (st["extras"], st["gastosExtra"], st["servicios"]):
+        for x in lst:
+            x["amt"] = nv(x.get("amt"))
+    base = nueva_tarjeta()
+    for t in st["tarjetas"]:
+        for k, v in base.items():
+            t.setdefault(k, [] if isinstance(v, list) else v)
+        t["extraPagos"] = [p for p in (t.get("extraPagos") or []) if isinstance(p, dict)]
+        for p in t["extraPagos"]:
+            p["amt"] = nv(p.get("amt"))
+    ids = {s.get("id") for s in st["servicios"]}
+    for s in servicios_perp:
+        if s.get("id") not in ids:
+            st["servicios"].append({"id": s["id"], "name": s["name"], "amt": 0})
+    return st
+
+def calc_mes(st: dict) -> dict:
+    """Mismo cálculo que calcMes() de la web.
+    Disponible = ingresos − pagos realizados (tarjetas pagadas + servicios + super + gastos extra)."""
+    ing = nv(st.get("sueldo")) + sum(nv(e.get("amt")) for e in st.get("extras") or [])
+    tc_pag = sum(nv(t.get("pagado")) + sum(nv(p.get("amt")) for p in t.get("extraPagos") or [])
+                 for t in st.get("tarjetas") or [])
+    tc_total = sum(nv(t.get("total")) for t in st.get("tarjetas") or [])
+    sv = sum(nv(s.get("amt")) for s in st.get("servicios") or [])
+    sup = nv(st.get("superAmt"))
+    gx = sum(nv(g.get("amt")) for g in st.get("gastosExtra") or [])
+    pagos = tc_pag + sv + sup + gx
+    return {"ing": ing, "tc_pag": tc_pag, "tc_total": tc_total, "sv": sv, "sup": sup,
+            "gx": gx, "pagos": pagos, "disp": ing - pagos}
+
+# ── Operaciones sobre un mes (las usan los comandos y la migración) ──
+
+def buscar_tarjeta(st: dict, nombre: str) -> int | None:
+    """Índice de la tarjeta cuyo nombre coincide (exacto, o el único que empieza/contiene el texto)."""
+    q = nombre.strip().lower()
+    if not q:
+        return None
+    nombres = [tc_name(t, i).lower() for i, t in enumerate(st["tarjetas"])]
+    for criterio in (lambda n: n == q, lambda n: n.startswith(q), lambda n: q in n):
+        hits = [i for i, n in enumerate(nombres) if criterio(n)]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            return None
+    return None
+
+def pagar_tarjeta(st: dict, idx: int, monto: float) -> str:
+    """Registra un pago. Si la tarjeta ya tenía un pago cargado, se suma como pago adicional."""
+    t = st["tarjetas"][idx]
+    if nv(t.get("pagado")):
+        t["extraPagos"].append({"name": "Pago (Telegram)", "amt": monto})
+        return "adicional"
+    t["pagado"] = monto
+    return "pago"
+
+def poner_servicio(st: dict, srv_id: str, nombre: str, monto: float) -> float:
+    """Pone el monto del mes de un servicio. Devuelve el monto que tenía antes."""
+    s = next((x for x in st["servicios"] if x.get("id") == srv_id), None)
+    if s is None:
+        s = {"id": srv_id, "name": nombre, "amt": 0}
+        st["servicios"].append(s)
+    antes = nv(s.get("amt"))
+    s["amt"] = monto
+    return antes
+
+def aplicar_mes_bot_viejo(st: dict, viejo: dict, servicios_perp: list):
+    """Pasa al formato de la web lo que una versión anterior del bot guardó para un mes."""
+    ing = viejo.get("ingresos") if isinstance(viejo.get("ingresos"), dict) else {}
+    if nv(ing.get("sueldo")) and not nv(st.get("sueldo")):
+        st["sueldo"] = nv(ing["sueldo"])
+    for e in ing.get("extras") or []:
+        if isinstance(e, dict) and nv(e.get("monto")):
+            st["extras"].append({"name": e.get("desc") or "Ingreso", "amt": nv(e["monto"])})
+    og = viejo.get("otrosGastos") if isinstance(viejo.get("otrosGastos"), dict) else {}
+    if nv(og.get("super")):
+        st["superAmt"] = nv(st.get("superAmt")) + nv(og["super"])
+    for e in og.get("extras") or []:
+        if isinstance(e, dict) and nv(e.get("monto")):
+            st["gastosExtra"].append({"name": e.get("desc") or "Gasto extra", "amt": nv(e["monto"]), "fecha": ""})
+    srv = viejo.get("servicios")
+    if isinstance(srv, list):
+        for s in srv:
+            if isinstance(s, dict) and s.get("id") and nv(s.get("amt")):
+                poner_servicio(st, s["id"], s.get("name") or "Servicio", nv(s["amt"]))
+    elif isinstance(srv, dict):
+        for k, v in srv.items():
+            if not nv(v):
+                continue
+            p = next((x for x in servicios_perp if x["name"].lower() == str(k).lower()), None)
+            if p:
+                poner_servicio(st, p["id"], p["name"], nv(v))
+            else:
+                st["gastosExtra"].append({"name": str(k).capitalize(), "amt": nv(v), "fecha": ""})
+    for t in viejo.get("tarjetas") or []:
+        if not isinstance(t, dict) or not nv(t.get("pagado")):
+            continue
+        nombre = (t.get("nombre") or t.get("name") or "Tarjeta").strip()
+        idx = buscar_tarjeta(st, nombre)
+        if idx is None:
+            st["tarjetas"].append(nueva_tarjeta(nombre.title()))
+            idx = len(st["tarjetas"]) - 1
+        pagar_tarjeta(st, idx, nv(t["pagado"]))
+
+# ── Lectura / escritura en Drive ──
+
+def _leer_global(drive, root_id: str) -> tuple[str | None, dict | None]:
     fid, _ = find_data_file(drive, DATA_FILE, root_id)
     if not fid:
-        log.info(f"No se encontró {DATA_FILE} en {DRIVE_ROOT_FOLDER}/{DATA_FOLDER}/")
-        return {}
-    log.info(f"Leyendo {DATA_FILE} con id={fid}")
-    return read_json_file(drive, fid)
+        return None, None
+    try:
+        g = read_json_file(drive, fid)
+    except Exception as e:
+        log.warning(f"No se pudo leer {DATA_FILE}: {e}")
+        return fid, None
+    return fid, (g if isinstance(g, dict) else None)
 
-def write_drive_data(creds: Credentials, data: dict):
+def _leer_mes_drive(drive, root_id: str, y: int, m: int, glob: dict | None = None,
+                    glob_leido: bool = False) -> tuple[dict | None, str | None]:
+    """(estado del mes en formato web o None, id del archivo del mes o None)."""
+    fid, _ = find_data_file(drive, month_file_name(y, m), root_id)
+    if fid:
+        try:
+            st = read_json_file(drive, fid)
+        except Exception as e:
+            log.warning(f"No se pudo leer {month_file_name(y, m)}: {e}")
+            st = None
+        return (st if isinstance(st, dict) else None), fid
+    # Sin archivo propio: el mes puede estar todavía en el archivo viejo (formato web, mes 0..11)
+    if not glob_leido:
+        _, glob = _leer_global(drive, root_id)
+    v = (glob or {}).get(f"fin4_{y}_{m-1}")
+    if isinstance(v, str):
+        try:
+            st = json.loads(v)
+            if isinstance(st, dict):
+                return st, None
+        except ValueError:
+            pass
+    return None, None
+
+def _servicios_drive(drive, root_id: str) -> list:
+    fid, _ = find_data_file(drive, SERVICIOS_FILE, root_id)
+    if not fid:
+        return []
+    d = read_json_file(drive, fid)
+    return [s for s in d if isinstance(s, dict) and s.get("id")] if isinstance(d, list) else []
+
+_migracion_hecha: set[str] = set()   # carpetas Finanzas/ ya revisadas en esta ejecución
+# Un cambio a la vez: dos /gasto seguidos leen y guardan el mismo archivo y uno pisaría al otro.
+_mes_lock = threading.RLock()
+
+def migrar_datos_bot_viejo(drive, root_id: str, servicios_perp: list):
+    """Una sola vez: lo que versiones anteriores del bot guardaron en finanzas_data.json
+    (/gasto, /ingreso, /tarjeta) se pasa al archivo de cada mes, que es lo que lee la web.
+    Antes se guarda una copia completa del archivo viejo como respaldo."""
+    with _mes_lock:
+        if root_id in _migracion_hecha:
+            return
+        _migrar(drive, root_id, servicios_perp)
+        _migracion_hecha.add(root_id)
+
+def _migrar(drive, root_id: str, servicios_perp: list):
+    gid, glob = _leer_global(drive, root_id)
+    viejos = {k: v for k, v in (glob or {}).items() if isinstance(v, dict) and MONTH_KEY_RE.match(k)}
+    if viejos:
+        data_id = get_data_folder(drive, root_id)
+        hoy = now_ar().strftime("%Y-%m-%d")
+        write_json_file(drive, f"finanzas_data (respaldo bot {hoy}).json", data_id, glob)
+        for k, viejo in sorted(viejos.items()):
+            yy, mm = (int(x) for x in MONTH_KEY_RE.match(k).groups())
+            if not 1 <= mm <= 12:
+                continue
+            st, fid = _leer_mes_drive(drive, root_id, yy, mm, glob, glob_leido=True)
+            if st is None and fid:
+                log.warning(f"Migración: {month_file_name(yy, mm)} ilegible, se deja como está")
+                continue
+            if st is None:
+                st = mes_vacio(servicios_perp)
+            normalizar_mes(st, servicios_perp)
+            aplicar_mes_bot_viejo(st, viejo, servicios_perp)
+            write_json_file(drive, month_file_name(yy, mm), data_id, st, fid)
+            log.info(f"Migración: datos del bot de {mes_label(yy, mm)} pasados a {month_file_name(yy, mm)}")
+        limpio = {k: v for k, v in glob.items() if k not in viejos}
+        write_json_file(drive, DATA_FILE, data_id, limpio, gid)
+
+def leer_mes(creds: Credentials, y: int, m: int) -> dict | None:
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    fid, data_id = find_data_file(drive, DATA_FILE, root_id)
-    write_json_file(drive, DATA_FILE, data_id, data, fid)
+    perp = _servicios_drive(drive, root_id)
+    migrar_datos_bot_viejo(drive, root_id, perp)
+    st, _ = _leer_mes_drive(drive, root_id, y, m)
+    return normalizar_mes(st, perp) if st is not None else None
+
+def modificar_mes(creds: Credentials, y: int, m: int, cambio):
+    """Lee el mes (o lo crea), llama a cambio(estado, servicios) y, si devuelve (True, info),
+    guarda el archivo del mes. Devuelve (guardado, info, estado)."""
+    with _mes_lock:
+        return _modificar_mes(creds, y, m, cambio)
+
+def _modificar_mes(creds: Credentials, y: int, m: int, cambio):
+    drive = get_drive(creds)
+    root_id = get_root_folder(drive)
+    perp = _servicios_drive(drive, root_id)
+    migrar_datos_bot_viejo(drive, root_id, perp)
+    st, fid = _leer_mes_drive(drive, root_id, y, m)
+    if st is None:
+        if fid:   # existe pero no se pudo leer: no pisarlo
+            raise RuntimeError(f"No se pudo leer {month_file_name(y, m)}")
+        anterior, _ = _leer_mes_drive(drive, root_id, *mes_anterior(y, m))
+        st = mes_vacio(perp, anterior)
+    normalizar_mes(st, perp)
+    guardar, info = cambio(st, perp)
+    if guardar:
+        write_json_file(drive, month_file_name(y, m), get_data_folder(drive, root_id), st, fid)
+    return guardar, info, st
 
 # ── servicios.json ──────────────────────────────────────────────────────────
 
@@ -329,11 +581,12 @@ def write_servicios(creds: Credentials, servicios: list):
 # ── Subir comprobante ───────────────────────────────────────────────────────
 
 def upload_comprobante(creds: Credentials, servicio_name: str,
-                       filename: str, content: bytes, mime: str) -> str:
-    """Sube un archivo a Finanzas/Comprobantes/<servicio>/. Devuelve el file id."""
+                       filename: str, content: bytes, mime: str, mes_prefix: str) -> str:
+    """Sube un archivo a Finanzas/Comprobantes/<servicio>/<AAAA-MM>/ (igual que la web).
+    Devuelve el file id."""
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    srv_folder_id = get_comprobantes_folder(drive, root_id, servicio_name)
+    srv_folder_id = ensure_folder(drive, mes_prefix, get_comprobantes_folder(drive, root_id, servicio_name))
     buf = io.BytesIO(content)
     media = MediaIoBaseUpload(buf, mimetype=mime)
     meta = {"name": filename, "parents": [srv_folder_id]}
@@ -341,19 +594,29 @@ def upload_comprobante(creds: Credentials, servicio_name: str,
     log.info(f"Comprobante subido: {filename} (id={f['id']})")
     return f["id"]
 
+def _archivos_en(drive, folder_id: str) -> list:
+    q = f"'{folder_id}' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false"
+    res = drive.files().list(q=q, spaces="drive", pageSize=200, fields="files(id,name)").execute()
+    return res.get("files", [])
+
 def list_comprobantes(creds: Credentials, servicio_name: str, mes_prefix: str) -> list:
-    """
-    Lista comprobantes de un servicio para un mes dado.
-    mes_prefix ej: '2026-10'  → busca archivos que empiecen con ese prefijo.
-    Devuelve lista de {id, name}.
-    """
+    """Comprobantes de un servicio para un mes ('2026-10'). Devuelve [{id, name}].
+    Mira las dos ubicaciones: Comprobantes/<servicio>/<AAAA-MM>/ (web y bot actual) y archivos
+    'AAAA-MM_...' sueltos en Comprobantes/<servicio>/ (versiones anteriores del bot)."""
     drive = get_drive(creds)
     root_id = get_root_folder(drive)
-    srv_folder_id = get_comprobantes_folder(drive, root_id, servicio_name)
-    q = f"'{srv_folder_id}' in parents and name contains '{dq(mes_prefix)}' and trashed=false"
-    res = drive.files().list(q=q, spaces="drive",
-                             fields="files(id,name)", orderBy="name").execute()
-    return res.get("files", [])
+    comp_id = find_folder(drive, COMPROBANTES_FOLDER, root_id)
+    srv_id = find_folder(drive, servicio_name, comp_id) if comp_id else None
+    if not srv_id:
+        return []
+    archivos = [f for f in _archivos_en(drive, srv_id) if f["name"].startswith(mes_prefix)]
+    mes_id = find_folder(drive, mes_prefix, srv_id)
+    if mes_id:
+        archivos += _archivos_en(drive, mes_id)
+    return sorted(archivos, key=lambda f: f["name"].lower())
+
+def file_name(creds: Credentials, file_id: str) -> str:
+    return get_drive(creds).files().get(fileId=file_id, fields="name").execute().get("name", "comprobante")
 
 def download_file(creds: Credentials, file_id: str) -> bytes:
     drive = get_drive(creds)
@@ -372,11 +635,11 @@ def _run_in_executor(fn, *args):
     loop = asyncio.get_event_loop()
     return loop.run_in_executor(_drive_executor, fn, *args)
 
-async def read_drive_data_async(creds: Credentials) -> dict:
-    return await _run_in_executor(read_drive_data, creds)
+async def leer_mes_async(creds: Credentials, y: int, m: int) -> dict | None:
+    return await _run_in_executor(leer_mes, creds, y, m)
 
-async def write_drive_data_async(creds: Credentials, data: dict):
-    return await _run_in_executor(write_drive_data, creds, data)
+async def modificar_mes_async(creds: Credentials, y: int, m: int, cambio):
+    return await _run_in_executor(modificar_mes, creds, y, m, cambio)
 
 async def read_servicios_async(creds: Credentials) -> list:
     return await _run_in_executor(read_servicios, creds)
@@ -384,12 +647,8 @@ async def read_servicios_async(creds: Credentials) -> list:
 async def write_servicios_async(creds: Credentials, servicios: list):
     return await _run_in_executor(write_servicios, creds, servicios)
 
-async def upload_comprobante_async(creds, servicio_name, filename, content, mime) -> str:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        _drive_executor, upload_comprobante,
-        creds, servicio_name, filename, content, mime
-    )
+async def upload_comprobante_async(creds, servicio_name, filename, content, mime, mes_prefix) -> str:
+    return await _run_in_executor(upload_comprobante, creds, servicio_name, filename, content, mime, mes_prefix)
 
 async def list_comprobantes_async(creds, servicio_name, mes_prefix) -> list:
     loop = asyncio.get_event_loop()
@@ -401,32 +660,33 @@ async def list_comprobantes_async(creds, servicio_name, mes_prefix) -> list:
 async def download_file_async(creds, file_id) -> bytes:
     return await _run_in_executor(download_file, creds, file_id)
 
+async def file_name_async(creds, file_id) -> str:
+    return await _run_in_executor(file_name, creds, file_id)
+
 # ──────────────────────────────────────────────
 # Parsear montos (acepta 1500 / 1.500 / 1,500 / 1.500,00 / 1,500.00)
 # ──────────────────────────────────────────────
 def parse_monto(texto: str):
-    """Devuelve float o None. Acepta coma o punto como decimal/miles."""
-    t = texto.strip().replace(" ", "")
-    # Si tiene tanto punto como coma: el último es el decimal
+    """Devuelve float o None. Formato argentino primero: 2.600.000 / 4.500,50 / 1500 / 1,5.
+    También 1,234.56 (si aparecen punto y coma, el último es el decimal)."""
+    t = str(texto).strip().replace(" ", "").replace("$", "")
+    if not re.fullmatch(r"\d[\d.,]*", t):
+        return None
     if "." in t and "," in t:
-        if t.rfind(".") < t.rfind(","):
-            # formato 1.234,56
-            t = t.replace(".", "").replace(",", ".")
-        else:
-            # formato 1,234.56
-            t = t.replace(",", "")
-    elif "," in t:
-        # puede ser decimal (1,50) o miles (1,500) → si hay exactamente 3 cifras después tratar como miles
-        partes = t.split(",")
-        if len(partes) == 2 and len(partes[1]) == 3:
-            t = t.replace(",", "")   # miles sin decimal
-        else:
-            t = t.replace(",", ".")  # decimal
-    elif "." in t:
-        partes = t.split(".")
-        if len(partes) == 2 and len(partes[1]) == 3:
-            t = t.replace(".", "")   # miles sin decimal
-        # sino queda como está (decimal inglés)
+        dec = "," if t.rfind(",") > t.rfind(".") else "."
+        mil = "." if dec == "," else ","
+        t = t.replace(mil, "").replace(dec, ".")
+    elif t.count(".") > 1 or t.count(",") > 1:
+        # 2.600.000 / 2,600,000: separadores de miles
+        sep = "." if "." in t else ","
+        if not re.fullmatch(rf"\d{{1,3}}(\{sep}\d{{3}})+", t):
+            return None
+        t = t.replace(sep, "")
+    elif "." in t or "," in t:
+        sep = "." if "." in t else ","
+        ent, frac = t.split(sep)
+        # 4.500 → miles; 4,5 / 4.50 → decimales
+        t = ent + frac if len(frac) == 3 else ent + "." + frac
     try:
         return float(t)
     except ValueError:
@@ -435,158 +695,65 @@ def parse_monto(texto: str):
 # ──────────────────────────────────────────────
 # Formato de números
 # ──────────────────────────────────────────────
-def fmt(v: float, decimals=2) -> str:
+def fmt(v: float, decimals: int | None = None) -> str:
+    """1234567.5 → '1.234.567,50'. Sin decimals: sin centavos si el monto es entero (como la web)."""
     if v is None:
         return "—"
+    if decimals is None:
+        decimals = 0 if abs(v - round(v)) < 0.005 else 2
     fmt_str = f"{v:,.{decimals}f}"
     # Cambiar separadores al estilo argentino
     return fmt_str.replace(",", "X").replace(".", ",").replace("X", ".")
 
+def pesos(v: float) -> str:
+    return f"−$ {fmt(-v)}" if v < 0 else f"$ {fmt(v)}"
+
 # ──────────────────────────────────────────────
-# Resumen de un mes
+# Resumen de un mes (mismo criterio que la web)
 # ──────────────────────────────────────────────
-def parse_mes(raw) -> dict:
-    """
-    Normaliza el estado de un mes al formato interno del bot.
-    La web app guarda cada clave como un JSON string en localStorage y luego
-    vuelca esos strings al JSON de Drive → data[key] = "{\"sueldo\":...}"
-    El bot guarda dicts directamente.
-    """
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except Exception:
-            return {}
-    if not isinstance(raw, dict):
-        return {}
+def build_resumen(st: dict | None, y: int, m: int) -> str:
+    label = mes_label(y, m)
+    if not st:
+        return f"📭 Todavía no hay datos de {label}."
+    c = calc_mes(st)
+    L = [f"📊 *Resumen — {label}*", ""]
 
-    # Estructura de la web app:
-    #   { sueldo, extras:[{desc,amt}], tarjetas:[{name,total,pagado,usdTotal,...}],
-    #     servicios:[{name,amt}], superAmt, gastosExtra:[{desc,amt}] }
-    # Estructura del bot (al guardar desde bot):
-    #   { ingresos:{sueldo, extras:[{desc,monto}]}, servicios:{luz,...},
-    #     tarjetas:[{pagado,totalUsd,...}], otrosGastos:{super, extras:[{desc,monto}]} }
+    L.append(f"💰 *Ingresos: {pesos(c['ing'])}*")
+    if nv(st.get("sueldo")):
+        L.append(f"  └ Sueldo: {pesos(nv(st['sueldo']))}")
+    for e in st["extras"]:
+        L.append(f"  └ {md(e.get('name') or 'Extra')}: {pesos(nv(e.get('amt')))}")
 
-    def nv(v):
-        try: return float(v) if v not in (None, '', 'NaN') else 0.0
-        except: return 0.0
+    L.append("")
+    L.append(f"💳 Tarjetas pagadas: {pesos(c['tc_pag'])}")
+    for i, t in enumerate(st["tarjetas"]):
+        pag = nv(t.get("pagado")) + sum(nv(p.get("amt")) for p in t["extraPagos"])
+        tot = nv(t.get("total"))
+        if not pag and not tot:
+            continue
+        linea = f"  └ {md(tc_name(t, i))}: {pesos(pag)}"
+        if tot:
+            linea += f" de {pesos(tot)}" + (" ✅" if pag >= tot else "")
+        L.append(linea)
 
-    # ── Ingresos ──
-    if "ingresos" in raw:
-        # formato bot
-        ing = raw["ingresos"] if isinstance(raw["ingresos"], dict) else {}
-        sueldo = nv(ing.get("sueldo", 0))
-        extras_ing = [{"desc": e.get("desc","Extra"), "monto": nv(e.get("monto",0))}
-                      for e in (ing.get("extras") or [])]
-    else:
-        # formato web
-        sueldo = nv(raw.get("sueldo", 0))
-        extras_ing = [{"desc": e.get("desc", e.get("name","Extra")), "monto": nv(e.get("amt", e.get("monto",0)))}
-                      for e in (raw.get("extras") or [])]
+    L.append(f"🏠 Servicios: {pesos(c['sv'])}")
+    for s in st["servicios"]:
+        if nv(s.get("amt")):
+            L.append(f"  └ {md(s.get('name') or 'Servicio')}: {pesos(nv(s['amt']))}")
 
-    # ── Servicios ──
-    if "servicios" in raw and isinstance(raw["servicios"], list):
-        # formato web: [{name, amt}]
-        total_srv = sum(nv(s.get("amt", 0)) for s in raw["servicios"])
-        srv_detalle = [(s.get("name","Servicio"), nv(s.get("amt",0)))
-                       for s in raw["servicios"] if nv(s.get("amt",0)) > 0]
-    elif "servicios" in raw and isinstance(raw["servicios"], dict):
-        # formato bot: {luz, gas, ...}
-        srv = raw["servicios"]
-        nombres_srv = ["luz","gas","expensas","alquiler","internet","celular","obraSocial"]
-        nombres_label = {"luz":"Luz","gas":"Gas","expensas":"Expensas","alquiler":"Alquiler",
-                         "internet":"Internet","celular":"Celular","obraSocial":"Obra Social"}
-        total_srv = sum(nv(srv.get(s, 0)) for s in nombres_srv)
-        srv_detalle = [(nombres_label[s], nv(srv.get(s,0))) for s in nombres_srv if nv(srv.get(s,0)) > 0]
-    else:
-        total_srv = 0
-        srv_detalle = []
+    L.append(f"🛒 Super / Mercado: {pesos(c['sup'])}")
 
-    # ── Tarjetas ──
-    tarjetas = raw.get("tarjetas") or []
-    total_tar_ars = 0
-    total_tar_usd = 0
-    for t in tarjetas:
-        pagado = nv(t.get("pagado", 0))
-        extra_pagos = sum(nv(p.get("amt", p.get("monto", 0))) for p in (t.get("extraPagos") or []))
-        total_tar_ars += pagado + extra_pagos
-        total_tar_usd += nv(t.get("usdTotal", t.get("totalUsd", 0)))
+    L.append(f"🏷 Gastos extra: {pesos(c['gx'])}")
+    for g in st["gastosExtra"]:
+        L.append(f"  └ {md(g.get('name') or 'Gasto')}: {pesos(nv(g.get('amt')))}")
 
-    # ── Otros gastos ──
-    if "otrosGastos" in raw and isinstance(raw["otrosGastos"], dict):
-        # formato bot
-        otros = raw["otrosGastos"]
-        super_val = nv(otros.get("super", 0))
-        extras_gas = [{"desc": e.get("desc","Extra"), "monto": nv(e.get("monto",0))}
-                      for e in (otros.get("extras") or [])]
-    else:
-        # formato web
-        super_val = nv(raw.get("superAmt", 0))
-        extras_gas = [{"desc": e.get("desc", e.get("name","Extra")), "monto": nv(e.get("amt", e.get("monto",0)))}
-                      for e in (raw.get("gastosExtra") or [])]
-
-    return {
-        "sueldo": sueldo,
-        "extras_ing": extras_ing,
-        "total_srv": total_srv,
-        "srv_detalle": srv_detalle,
-        "total_tar_ars": total_tar_ars,
-        "total_tar_usd": total_tar_usd,
-        "super_val": super_val,
-        "extras_gas": extras_gas,
-    }
-
-
-def build_resumen(data: dict, key: str) -> str:
-    raw = data.get(key)
-    if not raw:
-        return f"📭 No hay datos para {key_label(key)}."
-
-    mes = parse_mes(raw)
-    if not mes:
-        return f"📭 No hay datos para {key_label(key)}."
-
-    label = key_label(key)
-    sueldo = mes["sueldo"]
-    extras_ing = mes["extras_ing"]
-    total_ing = sueldo + sum(e["monto"] for e in extras_ing)
-
-    total_srv = mes["total_srv"]
-    srv_detalle = mes["srv_detalle"]
-    total_tar_ars = mes["total_tar_ars"]
-    total_tar_usd = mes["total_tar_usd"]
-    super_val = mes["super_val"]
-    extras_gas = mes["extras_gas"]
-
-    total_otros = super_val + sum(e["monto"] for e in extras_gas)
-    total_gas = total_srv + total_tar_ars + total_otros
-    disponible = total_ing - total_gas
-
-    lineas = [
-        f"📊 *Resumen — {label}*\n",
-        f"💰 Ingresos:    $ {fmt(total_ing)}",
-        f"  └ Sueldo:   $ {fmt(sueldo)}",
-    ]
-    for e in extras_ing:
-        lineas.append(f"  └ {e['desc']}: $ {fmt(e['monto'])}")
-
-    lineas.append(f"\n🏠 Servicios:   $ {fmt(total_srv)}")
-    for nombre, monto in srv_detalle:
-        lineas.append(f"  └ {nombre}: $ {fmt(monto)}")
-
-    lineas.append(f"💳 Tarjetas:    $ {fmt(total_tar_ars)}")
-    if total_tar_usd:
-        lineas.append(f"   (USD {fmt(total_tar_usd)} incluidos)")
-    if super_val:
-        lineas.append(f"🛒 Super/Merc.: $ {fmt(super_val)}")
-    for e in extras_gas:
-        lineas.append(f"  └ {e['desc']}: $ {fmt(e['monto'])}")
-
-    lineas += [
-        f"\n📉 Total gastos: $ {fmt(total_gas)}",
-        f"{'✅' if disponible >= 0 else '🔴'} Disponible:  $ {fmt(disponible)}",
-    ]
-    return "\n".join(lineas)
+    L += ["",
+          f"📉 Pagos realizados: {pesos(c['pagos'])}",
+          f"{'✅' if c['disp'] >= 0 else '🔴'} *Disponible: {pesos(c['disp'])}*"]
+    pendiente = c["tc_total"] - c["tc_pag"]
+    if pendiente > 0:
+        L.append(f"⏳ Falta pagar de tarjetas: {pesos(pendiente)}")
+    return "\n".join(L)
 
 # ──────────────────────────────────────────────
 # OAuth Flow
@@ -717,7 +884,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         tiene_scope_correcto = creds_data.get("scope_version", 1) >= 4
         if tiene_scope_correcto:
             await update.message.reply_text(
-                f"👋 ¡Ya estás conectado, {users_db[uid]['name']}!\n"
+                f"👋 ¡Ya estás conectado, {md(users_db[uid]['name'])}!\n"
                 "Usá /ayuda para ver los comandos disponibles."
             )
             return
@@ -751,249 +918,251 @@ async def cmd_desconectar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     texto = (
         "📋 *Comandos disponibles:*\n\n"
-        "📂 *Servicios y comprobantes:*\n"
-        "/servicios — Crear, ver y eliminar servicios\n"
-        "/comprobante — Subir comprobante a un servicio\n"
-        "/vercomprobantes — Ver y descargar comprobantes\n\n"
-        "💰 *Registrar datos:*\n"
-        "/gasto `MONTO NOMBRE_SERVICIO`\n"
+        "💰 *Registrar en el mes actual* (se ve en la web):\n"
+        "/gasto `MONTO super` — suma al Super/Mercado\n"
+        "/gasto `MONTO extra descripción` — gasto extra\n"
+        "/gasto `MONTO servicio` — monto del mes de un servicio\n"
         "  _Ej: /gasto 15000 luz_\n"
-        "/ingreso `MONTO descripción`\n"
-        "  _Ej: /ingreso 200000 freelance_\n"
-        "/tarjeta `NOMBRE MONTO`\n"
+        "/ingreso `MONTO sueldo` — sueldo del mes\n"
+        "/ingreso `MONTO descripción` — ingreso extra\n"
+        "/tarjeta `NOMBRE MONTO` — pago de una tarjeta\n"
         "  _Ej: /tarjeta visa 150000_\n\n"
         "📊 *Resúmenes:*\n"
         "/resumen — Mes actual\n"
         "/historial — Elegir un mes\n"
-        "/comparar — Balance vs mes anterior\n\n"
-        "📌 *Categorías especiales para /gasto:*\n"
-        "`super` o `mercado` → Super/Mercado\n"
-        "`extra` → Gasto extra\n\n"
-        "💡 Montos: `4500` / `4,500` / `4.500`"
+        "/comparar — Mes actual vs anterior\n\n"
+        "📂 *Servicios y comprobantes:*\n"
+        "/servicios — Crear, ver y eliminar servicios\n"
+        "/comprobante — Subir comprobante a un servicio\n"
+        "/vercomprobantes — Ver y descargar comprobantes\n\n"
+        "💡 Montos: `4500` / `4.500` / `4.500,50`\n"
+        "💡 Si tenés la web abierta, volvé a la pestaña y se actualiza sola."
     )
     await update.message.reply_text(texto, parse_mode="Markdown")
 
-async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
-        return
+def _leer_monto(texto: str):
+    """Monto > 0 o None."""
+    v = parse_monto(texto)
+    return v if v is not None and v > 0 else None
 
-    args = ctx.args
+def _hoy_iso() -> str:
+    return now_ar().strftime("%Y-%m-%d")
+
+async def _sin_cuenta(update: Update) -> bool:
+    if str(update.effective_chat.id) in users_db:
+        return False
+    await update.message.reply_text("Primero conectá tu cuenta con /start.")
+    return True
+
+async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if await _sin_cuenta(update):
+        return
+    uid = str(update.effective_chat.id)
+    args = ctx.args or []
     if len(args) < 2:
         await update.message.reply_text(
-            "Uso: /gasto MONTO CATEGORÍA descripción\n"
-            "Ej: /gasto 4500 super mercado chino\n"
-            "Para ver tus servicios disponibles: /servicios"
+            "Uso: /gasto MONTO CATEGORÍA [descripción]\n"
+            "• /gasto 45000 super\n"
+            "• /gasto 12000 extra regalo cumpleaños\n"
+            "• /gasto 15000 luz   (un servicio de /servicios)"
         )
         return
-
-    monto = parse_monto(args[0])
+    monto = _leer_monto(args[0])
     if monto is None:
-        msg = "No pude leer el monto."
-        if "." in args[0]:
-            msg += "\n💡 Si usaste punto como separador de miles (ej: 4.500), también funciona."
-        await update.message.reply_text(msg)
+        await update.message.reply_text("No pude leer el monto. Ej: /gasto 4.500 super")
         return
+    palabras = args[1:]
+    cat = palabras[0].lower()
+    desc = " ".join(palabras[1:]).strip()
+    y, m = mes_actual()
 
-    cat_raw = args[1].lower()
-    desc = " ".join(args[2:]) if len(args) > 2 else args[1]
+    def cambio(st, perp):
+        tipo = CATEGORIAS_FIJAS.get(cat)
+        if tipo == "Super/Mercado":
+            st["superAmt"] = nv(st.get("superAmt")) + monto
+            return True, ("super", None)
+        if tipo == "Gasto Extra":
+            nombre = desc or "Gasto extra"
+            st["gastosExtra"].append({"name": nombre, "amt": monto, "fecha": _hoy_iso()})
+            return True, ("extra", nombre)
+        # Servicio: el nombre puede tener varias palabras ("obra social")
+        texto = " ".join(palabras).lower()
+        srv = next((s for s in perp if s["name"].lower() == texto), None)
+        if not srv:
+            for k in range(len(palabras), 0, -1):
+                cand = " ".join(palabras[:k]).lower()
+                hits = [s for s in perp if s["name"].lower() == cand] or \
+                       [s for s in perp if s["name"].lower().startswith(cand)]
+                if len(hits) == 1:
+                    srv = hits[0]
+                    break
+        if not srv:
+            return False, ("desconocido", [s["name"] for s in perp])
+        antes = poner_servicio(st, srv["id"], srv["name"], monto)
+        return True, ("servicio", (srv["name"], antes))
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        servicios = await read_servicios_async(creds)
-        key = current_key()
-        mes = data.setdefault(key, {})
-
-        # Buscar si coincide con un servicio del usuario (por nombre aproximado)
-        srv_match = next(
-            (s for s in servicios if s["name"].lower() == cat_raw or
-             s["name"].lower().startswith(cat_raw)),
-            None
-        )
-
-        if CATEGORIAS_FIJAS.get(cat_raw) == "Super/Mercado":
-            mes.setdefault("otrosGastos", {})
-            mes["otrosGastos"]["super"] = mes["otrosGastos"].get("super", 0) + monto
-            etiqueta = "Super/Mercado"
-        elif CATEGORIAS_FIJAS.get(cat_raw) == "Gasto Extra":
-            mes.setdefault("otrosGastos", {})
-            extras = mes["otrosGastos"].setdefault("extras", [])
-            extras.append({"desc": desc, "monto": monto})
-            etiqueta = desc
-        elif srv_match:
-            # Guardar monto del servicio para este mes
-            srv_list = mes.setdefault("servicios", [])
-            existing = next((s for s in srv_list if s.get("id") == srv_match["id"]), None)
-            if existing:
-                existing["amt"] = monto
-            else:
-                srv_list.append({"id": srv_match["id"], "name": srv_match["name"], "amt": monto})
-            etiqueta = srv_match["name"]
-        else:
-            nombres_srv = ", ".join(s["name"] for s in servicios) if servicios else "(ninguno creado)"
-            await update.message.reply_text(
-                f"❓ Categoría '{args[1]}' no reconocida.\n\n"
-                f"Categorías fijas: `super`, `extra`\n"
-                f"Tus servicios: {nombres_srv}\n\n"
-                f"Para crear servicios: /servicios"
-            , parse_mode="Markdown")
-            return
-
-        await write_drive_data_async(creds, data)
-        await update.message.reply_text(
-            f"✅ Gasto guardado:\n"
-            f"  📌 {etiqueta}: *$ {fmt(monto)}*\n"
-            f"  📅 {key_label(key)}",
-            parse_mode="Markdown"
-        )
+        ok, (tipo, info), st = await modificar_mes_async(creds, y, m, cambio)
     except Exception as e:
         log.exception(e)
         await update.message.reply_text("❌ Error al guardar en Drive. Intentá de nuevo.")
+        return
+
+    if not ok:
+        nombres = ", ".join(md(n) for n in info) if info else "(todavía no creaste ninguno)"
+        await update.message.reply_text(
+            f"❓ No reconozco «{md(' '.join(palabras))}».\n\n"
+            f"Categorías: `super`, `extra`\n"
+            f"Tus servicios: {nombres}\n\n"
+            f"Para crear servicios: /servicios",
+            parse_mode="Markdown")
+        return
+    if tipo == "super":
+        linea = f"🛒 Super/Mercado: +{pesos(monto)}\n  Total del mes: *{pesos(nv(st['superAmt']))}*"
+    elif tipo == "extra":
+        linea = f"🏷 {md(info)}: *{pesos(monto)}*"
+    else:
+        nombre, antes = info
+        linea = f"🏠 {md(nombre)}: *{pesos(monto)}*"
+        if antes and antes != monto:
+            linea += f"\n  (antes: {pesos(antes)})"
+    disp = calc_mes(st)["disp"]
+    await update.message.reply_text(
+        f"✅ Gasto guardado — {mes_label(y, m)}\n{linea}\n\n💵 Disponible: {pesos(disp)}",
+        parse_mode="Markdown")
 
 async def cmd_ingreso(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if await _sin_cuenta(update):
+        return
     uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
-        return
-
-    args = ctx.args
+    args = ctx.args or []
     if not args:
-        await update.message.reply_text("Uso: /ingreso MONTO descripción\nEj: /ingreso 850000 sueldo")
+        await update.message.reply_text(
+            "Uso: /ingreso MONTO descripción\n"
+            "• /ingreso 850000 sueldo\n"
+            "• /ingreso 120000 freelance")
         return
-
-    monto = parse_monto(args[0])
+    monto = _leer_monto(args[0])
     if monto is None:
-        msg = "No pude leer el monto."
-        if "." in args[0]:
-            msg += "\n💡 Si usaste punto como separador de miles (ej: 850.000), también funciona."
-        await update.message.reply_text(msg)
+        await update.message.reply_text("No pude leer el monto. Ej: /ingreso 850.000 sueldo")
         return
+    desc = " ".join(args[1:]).strip() or "Ingreso"
+    es_sueldo = desc.lower() in ("sueldo", "salario")
+    y, m = mes_actual()
 
-    desc = " ".join(args[1:]) if len(args) > 1 else "Ingreso"
-    es_sueldo = any(p in desc.lower() for p in ["sueldo","salario"])
+    def cambio(st, perp):
+        if es_sueldo:
+            antes = nv(st.get("sueldo"))
+            st["sueldo"] = monto
+            return True, antes
+        st["extras"].append({"name": desc, "amt": monto})
+        return True, None
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        key = current_key()
-        mes = data.setdefault(key, {})
-        ingresos = mes.setdefault("ingresos", {})
-
-        if es_sueldo:
-            ingresos["sueldo"] = monto
-            etiqueta = "Sueldo"
-        else:
-            extras = ingresos.setdefault("extras", [])
-            extras.append({"desc": desc, "monto": monto})
-            etiqueta = desc
-
-        await write_drive_data_async(creds, data)
-        await update.message.reply_text(
-            f"✅ Ingreso guardado:\n"
-            f"  💰 {etiqueta}: *$ {fmt(monto)}*\n"
-            f"  📅 {key_label(key)}",
-            parse_mode="Markdown"
-        )
+        _, antes, st = await modificar_mes_async(creds, y, m, cambio)
     except Exception as e:
         log.exception(e)
-        await update.message.reply_text("❌ Error al guardar en Drive.")
+        await update.message.reply_text("❌ Error al guardar en Drive. Intentá de nuevo.")
+        return
+    linea = f"💰 {'Sueldo' if es_sueldo else md(desc)}: *{pesos(monto)}*"
+    if es_sueldo and antes and antes != monto:
+        linea += f"\n  (antes: {pesos(antes)})"
+    c = calc_mes(st)
+    await update.message.reply_text(
+        f"✅ Ingreso guardado — {mes_label(y, m)}\n{linea}\n\n"
+        f"Ingresos del mes: {pesos(c['ing'])}\n💵 Disponible: {pesos(c['disp'])}",
+        parse_mode="Markdown")
 
 async def cmd_tarjeta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if await _sin_cuenta(update):
+        return
     uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
-        return
-
-    args = ctx.args
+    args = ctx.args or []
     if len(args) < 2:
-        await update.message.reply_text(
-            "Uso: /tarjeta NOMBRE MONTO\nEj: /tarjeta visa 150000"
-        )
+        await update.message.reply_text("Uso: /tarjeta NOMBRE MONTO\nEj: /tarjeta visa 150000")
         return
-
-    nombre = args[0].upper()
-    monto = parse_monto(args[1])
+    # El monto va al final (también se acepta al principio: /tarjeta 150000 visa)
+    monto = _leer_monto(args[-1]); nombre = " ".join(args[:-1])
     if monto is None:
-        await update.message.reply_text("No pude leer el monto.")
+        monto = _leer_monto(args[0]); nombre = " ".join(args[1:])
+    if monto is None:
+        await update.message.reply_text("No pude leer el monto. Ej: /tarjeta visa 150.000")
         return
+    y, m = mes_actual()
+
+    def cambio(st, perp):
+        idx = buscar_tarjeta(st, nombre)
+        con_nombre = [tc_name(t, i) for i, t in enumerate(st["tarjetas"]) if (t.get("name") or "").strip()]
+        if idx is None:
+            if con_nombre:   # no adivinar: un error de tipeo crearía una tarjeta de más
+                return False, con_nombre
+            vacia = next((i for i, t in enumerate(st["tarjetas"]) if not (t.get("name") or "").strip()), None)
+            if vacia is None:
+                st["tarjetas"].append(nueva_tarjeta())
+                vacia = len(st["tarjetas"]) - 1
+            st["tarjetas"][vacia]["name"] = nombre.strip().title()
+            idx = vacia
+        tipo = pagar_tarjeta(st, idx, monto)
+        return True, (idx, tipo)
 
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        key = current_key()
-        mes = data.setdefault(key, {})
-        tarjetas = mes.setdefault("tarjetas", [])
-
-        # Buscar si ya existe esa tarjeta
-        tar = next((t for t in tarjetas if t.get("nombre","").upper() == nombre), None)
-        if tar:
-            tar["pagado"] = monto
-        else:
-            tarjetas.append({"nombre": nombre, "pagado": monto})
-
-        await write_drive_data_async(creds, data)
-        await update.message.reply_text(
-            f"✅ Pago de tarjeta guardado:\n"
-            f"  💳 {nombre}: *$ {fmt(monto)}*\n"
-            f"  📅 {key_label(key)}",
-            parse_mode="Markdown"
-        )
+        ok, info, st = await modificar_mes_async(creds, y, m, cambio)
     except Exception as e:
         log.exception(e)
-        await update.message.reply_text("❌ Error al guardar en Drive.")
+        await update.message.reply_text("❌ Error al guardar en Drive. Intentá de nuevo.")
+        return
+    if not ok:
+        await update.message.reply_text(
+            f"❓ No encontré la tarjeta «{md(nombre)}».\nTus tarjetas este mes: "
+            + ", ".join(md(n) for n in info), parse_mode="Markdown")
+        return
+    idx, tipo = info
+    t = st["tarjetas"][idx]
+    pag = nv(t["pagado"]) + sum(nv(p["amt"]) for p in t["extraPagos"])
+    tot = nv(t.get("total"))
+    linea = f"💳 {md(tc_name(t, idx))}: *{pesos(monto)}*"
+    if tipo == "adicional":
+        linea += f"\n  Se sumó a lo ya pagado → total pagado {pesos(pag)}"
+    if tot:
+        falta = tot - pag
+        linea += f"\n  Resumen: {pesos(tot)} · " + (f"falta {pesos(falta)}" if falta > 0 else "pagada ✅")
+    await update.message.reply_text(
+        f"✅ Pago de tarjeta guardado — {mes_label(y, m)}\n{linea}\n\n"
+        f"💵 Disponible: {pesos(calc_mes(st)['disp'])}",
+        parse_mode="Markdown")
 
 async def cmd_resumen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+    if await _sin_cuenta(update):
         return
+    uid = str(update.effective_chat.id)
+    y, m = mes_actual()
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        texto = build_resumen(data, current_key())
-        await update.message.reply_text(texto, parse_mode="Markdown")
+        st = await leer_mes_async(creds, y, m)
     except Exception as e:
         log.exception(e)
-        await update.message.reply_text("❌ Error al leer los datos.")
+        await update.message.reply_text("❌ Error al leer los datos de Drive.")
+        return
+    await update.message.reply_text(build_resumen(st, y, m), parse_mode="Markdown")
 
 async def cmd_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Muestra un teclado con los 12 meses para elegir cuál ver."""
-    uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+    """Muestra un teclado con los últimos 12 meses para elegir cuál ver."""
+    if await _sin_cuenta(update):
         return
-
-    n = now_ar()
-    botones = []
-    fila = []
-    for i in range(12):
-        m = ((n.month - 1 - i) % 12) + 1
-        y = n.year if n.month - i > 0 else n.year - 1
-        if n.month - i <= 0:
-            y = n.year - 1
-        # Calcular año correctamente
-        mes_idx = n.month - 1 - i
-        if mes_idx < 0:
-            mes_idx += 12
-            y = n.year - 1
-        else:
-            y = n.year
-        m = mes_idx + 1
-        key = f"fin4_{y}_{m}"
-        label = f"{MESES[mes_idx][:3]} {str(y)[2:]}"
-        fila.append(InlineKeyboardButton(label, callback_data=f"hist:{key}"))
+    y, m = mes_actual()
+    botones, fila = [], []
+    for _ in range(12):
+        fila.append(InlineKeyboardButton(f"{MESES[m-1][:3]} {str(y)[2:]}", callback_data=f"hist:{y}-{m}"))
         if len(fila) == 4:
-            botones.append(fila)
-            fila = []
+            botones.append(fila); fila = []
+        y, m = mes_anterior(y, m)
     if fila:
         botones.append(fila)
-
-    await update.message.reply_text(
-        "📅 ¿De qué mes querés ver el resumen?",
-        reply_markup=InlineKeyboardMarkup(botones)
-    )
+    await update.message.reply_text("📅 ¿De qué mes querés ver el resumen?",
+                                    reply_markup=InlineKeyboardMarkup(botones))
 
 async def callback_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1002,66 +1171,61 @@ async def callback_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if uid not in users_db:
         await query.edit_message_text("Primero conectá tu cuenta con /start.")
         return
-    _, key = query.data.split(":", 1)
+    mt = re.fullmatch(r"hist:(\d{4})-(\d{1,2})", query.data or "")
+    if not mt or not 1 <= int(mt.group(2)) <= 12:
+        await query.edit_message_text("Ese botón es de una versión anterior. Usá /historial de nuevo.")
+        return
+    y, m = int(mt.group(1)), int(mt.group(2))
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        texto = build_resumen(data, key)
-        await query.edit_message_text(texto, parse_mode="Markdown")
+        st = await leer_mes_async(creds, y, m)
+        await query.edit_message_text(build_resumen(st, y, m), parse_mode="Markdown")
     except Exception as e:
         log.exception(e)
-        await query.edit_message_text("❌ Error al leer los datos.")
+        await query.edit_message_text("❌ Error al leer los datos de Drive.")
 
 async def cmd_comparar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = str(update.effective_chat.id)
-    if uid not in users_db:
-        await update.message.reply_text("Primero conectá tu cuenta con /start.")
+    if await _sin_cuenta(update):
         return
+    uid = str(update.effective_chat.id)
+    ya, ma = mes_actual()
+    yp, mp = mes_anterior(ya, ma)
     try:
         creds = creds_from_dict(users_db[uid])
-        data = await read_drive_data_async(creds)
-        key_act = current_key()
-        key_ant = prev_key()
-
-        if key_ant not in data:
-            await update.message.reply_text(
-                f"📭 No hay datos del mes anterior ({key_label(key_ant)}) para comparar.\n"
-                f"Mostrando solo el mes actual:"
-            )
-            texto = build_resumen(data, key_act)
-            await update.message.reply_text(texto, parse_mode="Markdown")
-            return
-
-        def totales(k):
-            raw = data.get(k)
-            if not raw:
-                return 0, 0, 0
-            mes = parse_mes(raw)
-            if not mes:
-                return 0, 0, 0
-            ti = mes["sueldo"] + sum(e["monto"] for e in mes["extras_ing"])
-            tg = mes["total_srv"] + mes["total_tar_ars"] + mes["super_val"] + sum(e["monto"] for e in mes["extras_gas"])
-            return ti, tg, ti - tg
-
-        ti_a, tg_a, disp_a = totales(key_act)
-        ti_p, tg_p, disp_p = totales(key_ant)
-
-        def flecha(v_act, v_ant):
-            if v_act > v_ant: return "🔺"
-            if v_act < v_ant: return "🔻"
-            return "➡️"
-
-        texto = (
-            f"📊 *Comparación de meses*\n\n"
-            f"{'':20} *{key_label(key_ant)[:6]}* → *{key_label(key_act)[:6]}*\n"
-            f"💰 Ingresos:  $ {fmt(ti_p)} → $ {fmt(ti_a)} {flecha(ti_a, ti_p)}\n"
-            f"📉 Gastos:    $ {fmt(tg_p)} → $ {fmt(tg_a)} {flecha(tg_a, tg_p)}\n"
-            f"✅ Disponible:$ {fmt(disp_p)} → $ {fmt(disp_a)} {flecha(disp_a, disp_p)}\n"
-        )
-        await update.message.reply_text(texto, parse_mode="Markdown")
+        act = await leer_mes_async(creds, ya, ma)
+        ant = await leer_mes_async(creds, yp, mp)
     except Exception as e:
         log.exception(e)
-        await update.message.reply_text("❌ Error al leer los datos.")
+        await update.message.reply_text("❌ Error al leer los datos de Drive.")
+        return
+    if not ant:
+        await update.message.reply_text(
+            f"📭 No hay datos de {mes_label(yp, mp)} para comparar. Este es el mes actual:\n\n"
+            + build_resumen(act, ya, ma), parse_mode="Markdown")
+        return
+    a, p = calc_mes(act or mes_vacio([])), calc_mes(ant)
+
+    def fila(icono, titulo, k):
+        va, vp = a[k], p[k]
+        if abs(va - vp) < 0.005:
+            marca = "➡️"
+        else:
+            marca = "🔺" if va > vp else "🔻"
+            if vp:
+                marca += f" {abs(va - vp) / abs(vp) * 100:.0f}%"
+        return f"{icono} {titulo}: {pesos(vp)} → *{pesos(va)}* {marca}"
+
+    texto = "\n".join([
+        f"📊 *{MESES[mp-1]} → {MESES[ma-1]}*", "",
+        fila("💰", "Ingresos", "ing"),
+        fila("💳", "Tarjetas pagadas", "tc_pag"),
+        fila("🏠", "Servicios", "sv"),
+        fila("🛒", "Super", "sup"),
+        fila("🏷", "Gastos extra", "gx"),
+        fila("📉", "Pagos realizados", "pagos"),
+        fila("💵", "Disponible", "disp"),
+    ])
+    await update.message.reply_text(texto, parse_mode="Markdown")
 
 # ──────────────────────────────────────────────
 # /servicios — gestión de servicios perpetuos
@@ -1077,7 +1241,7 @@ def _servicios_keyboard(servicios: list, mode: str = "menu") -> InlineKeyboardMa
         if mode == "eliminar":
             botones.append([InlineKeyboardButton(f"🗑 {nombre}", callback_data=f"srv_del:{sid}")])
         elif mode == "comprobante":
-            botones.append([InlineKeyboardButton(f"📎 {nombre}", callback_data=f"srv_comp:{sid}:{nombre}")])
+            botones.append([InlineKeyboardButton(f"📎 {nombre}", callback_data=f"srv_comp:{sid}")])
         else:
             botones.append([InlineKeyboardButton(nombre, callback_data=f"srv_info:{sid}")])
     if mode == "menu":
@@ -1102,7 +1266,7 @@ async def cmd_servicios(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else:
             lineas = ["📋 *Tus servicios*\n"]
             for s in servicios:
-                lineas.append(f"  • {s['name']}")
+                lineas.append(f"  • {md(s['name'])}")
             texto = "\n".join(lineas)
         await update.message.reply_text(
             texto,
@@ -1155,7 +1319,7 @@ async def callback_servicios(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         servicios = [s for s in servicios if s["id"] != sid]
         await write_servicios_async(creds, servicios)
         await query.edit_message_text(
-            f"✅ Servicio *{nombre}* eliminado.\n"
+            f"✅ Servicio eliminado: {md(nombre)}\n"
             f"_(La carpeta de comprobantes en Drive no se borra automáticamente.)_",
             parse_mode="Markdown"
         )
@@ -1170,21 +1334,15 @@ async def callback_servicios(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not srv:
             await query.edit_message_text("Servicio no encontrado.")
             return
-        # Ver monto del mes actual si existe
-        fin_data = await read_drive_data_async(creds)
-        key = current_key()
-        mes_data = fin_data.get(key, {})
-        if isinstance(mes_data, str):
-            try: mes_data = json.loads(mes_data)
-            except: mes_data = {}
-        srv_mes = next(
-            (s for s in mes_data.get("servicios", []) if s.get("id") == sid), None
-        )
-        monto_txt = f"$ {fmt(srv_mes['amt'])}" if srv_mes else "Sin cargar este mes"
+        # Monto del mes actual (del archivo del mes, el mismo que muestra la web)
+        y, m = mes_actual()
+        st = await leer_mes_async(creds, y, m)
+        srv_mes = next((s for s in (st or {}).get("servicios", []) if s.get("id") == sid), None)
+        monto_txt = pesos(nv(srv_mes["amt"])) if srv_mes and nv(srv_mes.get("amt")) else "sin cargar"
         await query.edit_message_text(
-            f"🏠 *{srv['name']}*\n\n"
-            f"💰 {key_label(key)}: {monto_txt}\n\n"
-            f"Usá `/gasto MONTO {srv['name'].lower()}` para actualizar.",
+            f"🏠 {md(srv['name'])}\n\n"
+            f"💰 {mes_label(y, m)}: {monto_txt}\n\n"
+            f"Para cargarlo: /gasto MONTO {md(srv['name'].lower())}",
             parse_mode="Markdown"
         )
         return
@@ -1261,17 +1419,29 @@ async def callback_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     uid = str(query.from_user.id)
-    # data: srv_comp:<id>:<nombre>
-    parts = query.data.split(":", 2)
-    sid, nombre = parts[1], parts[2]
+    if uid not in users_db:
+        await query.edit_message_text("Primero conectá tu cuenta con /start.")
+        return
+    # data: srv_comp:<id>  (sólo el id: Telegram limita los datos del botón a 64 bytes)
+    sid = query.data.split(":")[1]
+    try:
+        servicios = await read_servicios_async(creds_from_dict(users_db[uid]))
+    except Exception as e:
+        log.exception(e)
+        await query.edit_message_text("❌ Error al leer servicios.")
+        return
+    nombre = next((s["name"] for s in servicios if s["id"] == sid), None)
+    if not nombre:
+        await query.edit_message_text("Ese servicio ya no existe. Usá /comprobante de nuevo.")
+        return
     ctx.user_data["comp_srv_id"]   = sid
     ctx.user_data["comp_srv_name"] = nombre
     ctx.user_data["esperando_comp"] = True
     n = now_ar()
     ctx.user_data["comp_mes_prefix"] = f"{n.year}-{n.month:02d}"
     await query.edit_message_text(
-        f"📎 *{nombre}* — enviame el archivo (PDF, foto JPG/PNG).\n\n"
-        f"Se guardará en Drive → Finanzas/Comprobantes/{nombre}/",
+        f"📎 {md(nombre)} — enviame el archivo (PDF, foto JPG/PNG).\n\n"
+        f"Se guardará en Drive → Finanzas/Comprobantes/{md(nombre)}/{ctx.user_data['comp_mes_prefix']}/",
         parse_mode="Markdown"
     )
 
@@ -1315,11 +1485,11 @@ async def msg_recibir_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 
         creds = creds_from_dict(users_db[uid])
         file_id = await upload_comprobante_async(
-            creds, nombre_srv, filename, content, mime
+            creds, nombre_srv, filename, content, mime, mes_prefix
         )
         await update.message.reply_text(
             f"✅ Comprobante guardado en Drive:\n"
-            f"  📁 Finanzas/Comprobantes/{nombre_srv}/\n"
+            f"  📁 Finanzas/Comprobantes/{nombre_srv}/{mes_prefix}/\n"
             f"  📄 {filename}",
         )
     except Exception as e:
@@ -1345,7 +1515,7 @@ async def cmd_ver_comprobantes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for s in servicios:
             botones.append([InlineKeyboardButton(
                 s["name"],
-                callback_data=f"ver_comp:{s['id']}:{s['name']}:{mes_prefix}"
+                callback_data=f"ver_comp:{s['id']}:{mes_prefix}"
             )])
         await update.message.reply_text(
             f"📂 *Comprobantes del mes*\n¿De qué servicio?",
@@ -1361,27 +1531,38 @@ async def callback_ver_comprobantes(update: Update, ctx: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     uid = str(query.from_user.id)
-    # data: ver_comp:<id>:<nombre>:<mes_prefix>
-    parts = query.data.split(":", 3)
-    sid, nombre, mes_prefix = parts[1], parts[2], parts[3]
+    if uid not in users_db:
+        await query.edit_message_text("Primero conectá tu cuenta con /start.")
+        return
+    # data: ver_comp:<id>:<AAAA-MM>
+    parts = query.data.split(":")
+    if len(parts) != 3 or not re.fullmatch(r"\d{4}-\d{2}", parts[2]):
+        await query.edit_message_text("Ese botón es de una versión anterior. Usá /vercomprobantes de nuevo.")
+        return
+    sid, mes_prefix = parts[1], parts[2]
 
     try:
         creds = creds_from_dict(users_db[uid])
+        servicios = await read_servicios_async(creds)
+        nombre = next((s["name"] for s in servicios if s["id"] == sid), None)
+        if not nombre:
+            await query.edit_message_text("Ese servicio ya no existe.")
+            return
         archivos = await list_comprobantes_async(creds, nombre, mes_prefix)
 
         if not archivos:
             await query.edit_message_text(
-                f"📭 No hay comprobantes de *{nombre}* para {mes_prefix}.",
+                f"📭 No hay comprobantes de {md(nombre)} para {mes_prefix}.",
                 parse_mode="Markdown"
             )
             return
 
         botones = [
-            [InlineKeyboardButton(f"⬇️ {a['name']}", callback_data=f"dl_comp:{a['id']}:{a['name']}")]
+            [InlineKeyboardButton(f"⬇️ {a['name']}", callback_data=f"dl_comp:{a['id']}")]
             for a in archivos
         ]
         await query.edit_message_text(
-            f"📂 *Comprobantes — {nombre} ({mes_prefix})*\n\nElegí cuál descargar:",
+            f"📂 Comprobantes — {md(nombre)} ({mes_prefix})\n\nElegí cuál descargar:",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(botones)
         )
@@ -1394,11 +1575,14 @@ async def callback_dl_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer("Descargando…")
     uid = str(query.from_user.id)
-    parts = query.data.split(":", 2)
-    file_id, filename = parts[1], parts[2]
+    if uid not in users_db:
+        await query.message.reply_text("Primero conectá tu cuenta con /start.")
+        return
+    file_id = query.data.split(":")[1]
 
     try:
         creds = creds_from_dict(users_db[uid])
+        filename = await file_name_async(creds, file_id)
         content = await download_file_async(creds, file_id)
         await query.message.reply_document(
             document=io.BytesIO(content),
@@ -1434,7 +1618,7 @@ async def notif_cierre(ctx: ContextTypes.DEFAULT_TYPE):
         return
     if _notif_load().get("cierre") == ym or not _destinatarios():
         return
-    label = key_label(current_key())
+    label = mes_label(*mes_actual())
     for uid in _destinatarios():
         try:
             await ctx.bot.send_message(
@@ -1460,14 +1644,15 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
     if _notif_load().get("nuevo_mes") == ym or not _destinatarios():
         return
     # El mes anterior es el que cerró
-    ant_key = prev_key()
-    nuevo_label = key_label(current_key())
+    y, m = mes_actual()
+    ya, ma = mes_anterior(y, m)
+    nuevo_label = mes_label(y, m)
 
     for uid in _destinatarios():
         try:
             creds = creds_from_dict(users_db[uid])
-            data = await read_drive_data_async(creds)
-            resumen = build_resumen(data, ant_key)
+            st = await leer_mes_async(creds, ya, ma)
+            resumen = build_resumen(st, ya, ma)
             await ctx.bot.send_message(
                 chat_id=int(uid),
                 text=(

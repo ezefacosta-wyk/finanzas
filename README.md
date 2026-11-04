@@ -75,16 +75,22 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
 | Comando | Descripción |
 |---|---|
 | `/start` | Conectar con Google Drive |
-| `/gasto MONTO CATEGORÍA desc` | Registrar gasto |
-| `/ingreso MONTO descripción` | Registrar ingreso |
-| `/tarjeta NOMBRE MONTO` | Registrar pago de tarjeta |
+| `/gasto MONTO super` | Suma al Super/Mercado del mes |
+| `/gasto MONTO extra descripción` | Agrega un gasto extra |
+| `/gasto MONTO servicio` | Monto del mes de un servicio (ej. `/gasto 15000 luz`) |
+| `/ingreso MONTO sueldo` | Sueldo del mes |
+| `/ingreso MONTO descripción` | Ingreso extra |
+| `/tarjeta NOMBRE MONTO` | Pago de una tarjeta (si ya tenía un pago, se suma como pago adicional) |
 | `/servicios`, `/comprobante`, `/vercomprobantes` | Servicios y comprobantes |
-| `/resumen`, `/historial`, `/comparar` | Resúmenes |
+| `/resumen`, `/historial`, `/comparar` | Resúmenes (mismo cálculo que la web) |
 | `/ayuda` | Lista de comandos |
+
+El bot lee y escribe los mismos archivos que la web. Si tenés la web abierta mientras cargás algo
+por Telegram, al volver a la pestaña se actualiza sola (salvo que tengas un cambio propio sin guardar).
 
 ## Datos en Drive
 ```
 Finanzas/
-├── Comprobantes/<servicio>/...
-└── Datos/   (finanzas_AAAA_MM.json, servicios.json)
+├── Comprobantes/<servicio>/<AAAA-MM>/...
+└── Datos/   finanzas_AAAA_MM.json (un archivo por mes), servicios.json
 ```

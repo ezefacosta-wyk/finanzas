@@ -1123,7 +1123,7 @@ async function getRootFolder(){if(rootFolderId)return rootFolderId;const cached=
   return rootFolderP;}
 async function findFileInFolder(name,folderId){const q='name=\''+dq(name)+'\' and \''+folderId+'\' in parents and trashed=false';const r=await driveReq('https://www.googleapis.com/drive/v3/files?spaces=drive&q='+encodeURIComponent(q)+'&fields=files(id,name)');if(!r)return null;const d=await r.json();return(d.files&&d.files.length)?d.files[0].id:null;}
 async function readJsonFile(fileId){const r=await driveReq('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media');if(!r)return null;try{return await r.json();}catch(e){return null;}}
-async function writeJsonFile(name,folderId,data,existingId){const blob=new Blob([JSON.stringify(data)],{type:'application/json'});if(existingId){await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+existingId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});return existingId;}const meta={name,parents:[folderId]};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(!r)return null;const d=await r.json();return d.id||null;}
+async function writeJsonFile(name,folderId,data,existingId){const blob=new Blob([JSON.stringify(data)],{type:'application/json'});if(existingId){const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files/'+existingId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body:blob});return (r&&r.ok)?existingId:null;}const meta={name,parents:[folderId]};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);const r=await driveReq('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',body:form});if(!r||!r.ok)return null;const d=await r.json();return d.id||null;}
 
 async function findDriveFile(){if(driveFileId)return driveFileId;const c=localStorage.getItem('fin_gdrive_fileid');if(c){driveFileId=c;return c;}const fid=await findDataFile(DRIVE_FILE);if(fid){driveFileId=fid;localStorage.setItem('fin_gdrive_fileid',fid);}return driveFileId||null;}
 async function findServiciosFile(){if(serviciosFileId)return serviciosFileId;const c=localStorage.getItem('fin_gdrive_srv_id');if(c){serviciosFileId=c;return c;}const fid=await findDataFile(SERVICIOS_FILE);if(fid){serviciosFileId=fid;localStorage.setItem('fin_gdrive_srv_id',fid);}return serviciosFileId||null;}
@@ -1138,7 +1138,7 @@ async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti
 function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');syncDrawerUser();updateHdrSync(type,el.textContent.trim());}
 // Indicador de sincronización en la cabecera (reemplaza la franja con avatar y Salir)
 function updateHdrSync(type,txt){const h=document.getElementById('hdrSync');if(!h)return;const ic={spin:'ti-loader-2 spin',ok:'ti-cloud-check',err:'ti-cloud-off'}[type]||'ti-cloud';h.className='hdr-sync'+(type?' '+type:'');const t=txt||'Sin cambios pendientes';h.innerHTML='<i class="ti '+ic+'"></i><span class="hdr-sync-txt">'+esc(t.replace(/✓/g,'').trim()||'Sincronizado')+'</span>';h.title=t;h.setAttribute('aria-label',t);}
-function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(()=>{saveMonthToDrive();updateDrawerBadges();},800);}
+function schedulePush(){dirty=true;clearTimeout(pushTimer);pushTimer=setTimeout(()=>{saveMonthToDrive();updateDrawerBadges();},800);}
 async function init(){document.getElementById('loginScreen').style.display='block';const saved=localStorage.getItem('fin_gtoken');if(saved){accessToken=saved;try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(r.ok){await fetchUserInfo();await loadFromDrive();showApp();return;}}catch(e){}localStorage.removeItem('fin_gtoken');accessToken=null;}}
 
 /* ════════════════════════════════════════════════════
@@ -1538,13 +1538,36 @@ function updateDrawerBadges(){
    ══════════════════════════════════════════════ */
 const monthFileIds={};
 function monthFileName(y,m){return 'finanzas_'+(y===undefined?curYear:y)+'_'+String((m===undefined?curMonth:m)+1).padStart(2,'0')+'.json';}
+// Último contenido de cada mes que se leyó o guardó en Drive: sirve para notar cambios hechos desde el bot
+const monthJson={};
+let dirty=false,lastRefresh=0;
 async function loadMonthFromDrive(y,m){
   const fname=monthFileName(y,m);
   const fid=await findDataFile(fname);
   if(!fid)return null;
   monthFileIds[fname]=fid;
-  return readJsonFile(fid);
+  const d=await readJsonFile(fid);
+  if(d)monthJson[fname]=JSON.stringify(d);
+  return d;
 }
+// Al volver a la pestaña: si el mes cambió en Drive (por ejemplo, un /gasto desde Telegram), se trae.
+// No se hace si hay cambios propios sin subir o si estás escribiendo en un campo.
+async function refreshMonthFromDrive(){
+  if(!accessToken||dirty||!navigator.onLine||Date.now()-lastRefresh<10000)return;
+  const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
+  lastRefresh=Date.now();const y=curYear,m=curMonth,fname=monthFileName(y,m);
+  try{const fid=monthFileIds[fname]||await findDataFile(fname);if(!fid)return;monthFileIds[fname]=fid;
+    const d=await readJsonFile(fid);if(!d||!Array.isArray(d.tarjetas))return;
+    const js=JSON.stringify(d);
+    if(js===monthJson[fname]||dirty||y!==curYear||m!==curMonth)return;
+    monthJson[fname]=js;
+    try{localStorage.setItem(mkey(),js);}catch(e){}
+    state=getState();renderAll();renderSides();
+    setSyncInfo('Actualizado desde Drive ✓','ok');
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMonthFromDrive();});
+window.addEventListener('focus',refreshMonthFromDrive);
 async function saveMonthToDrive(){
   if(!accessToken)return;
   setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');
@@ -1552,8 +1575,12 @@ async function saveMonthToDrive(){
     const datos=await getDataFolder();if(!datos){setSyncInfo('Error: carpeta Drive','err');return;}
     const fname=monthFileName();
     const fid=monthFileIds[fname]||await findDataFile(fname);
-    const newId=await writeJsonFile(fname,datos,state,fid);
-    if(newId)monthFileIds[fname]=newId;
+    const js=JSON.stringify(state);
+    let newId=await writeJsonFile(fname,datos,state,fid);
+    // id guardado que ya no sirve (archivo movido o borrado): se vuelve a buscar una vez
+    if(!newId&&fid){delete monthFileIds[fname];const f2=await findDataFile(fname);if(f2!==fid)newId=await writeJsonFile(fname,datos,state,f2);}
+    if(!newId){setSyncInfo('Error al guardar','err');return;}
+    monthFileIds[fname]=newId;monthJson[fname]=js;if(JSON.stringify(state)===js)dirty=false;
     // también guardar en localStorage como cache
     try{localStorage.setItem(mkey(),JSON.stringify(state));}catch(e){}
     const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
