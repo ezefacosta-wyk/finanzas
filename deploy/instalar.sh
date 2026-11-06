@@ -63,15 +63,11 @@ rm -f "$LOG"
 verde "El bot carga sin errores"
 
 echo "== 5/5 Servicio systemd (pide tu contraseña)"
-sed -e "s|__USUARIO__|${USUARIO}|g" -e "s|__DIR__|${DIR}|g" deploy/finanzas-bot.service | sudo tee "$UNIT" >/dev/null
-sudo systemctl daemon-reload
-sudo systemctl enable --now "$SERVICIO"
-sudo systemctl restart "$SERVICIO"
-sleep 3
-if systemctl is-active --quiet "$SERVICIO"; then
-  verde "✔ El bot está corriendo y va a arrancar solo cada vez que prendas la PC."
+source "${DIR}/deploy/servicio.sh"
+if instalar_servicio "$USUARIO" "$DIR"; then
+  verde "✔ Va a arrancar solo cada vez que prendas la PC."
 else
-  rojo "El servicio no arrancó. Mirá el detalle con: journalctl -u $SERVICIO -n 50 --no-pager"; exit 1
+  rojo "El servicio no arrancó."; exit 1
 fi
 echo
 echo "Comandos útiles:"

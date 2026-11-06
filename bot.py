@@ -771,6 +771,7 @@ def make_oauth_url(chat_id: int) -> str:
         },
         scopes=SCOPES,
         redirect_uri=REDIRECT_URI,
+        autogenerate_code_verifier=True,   # PKCE: sin esto la librería no lo usa
     )
     url, state = flow.authorization_url(
         access_type="offline",
@@ -781,11 +782,11 @@ def make_oauth_url(chat_id: int) -> str:
     now = time.time()
     states = {k: v for k, v in load_states().items()
               if isinstance(v, dict) and now - v.get("ts", 0) < OAUTH_STATE_TTL}
-    states[state] = {"chat_id": chat_id, "ts": now}
+    states[state] = {"chat_id": chat_id, "ts": now, "cv": flow.code_verifier}
     save_states(states)
     return url
 
-def _exchange_code(state: str, code: str):
+def _exchange_code(state: str, code: str, code_verifier: str | None = None):
     """Cambia el código de Google por credenciales (bloqueante: se corre en un hilo)."""
     flow = Flow.from_client_config(
         {
@@ -800,6 +801,7 @@ def _exchange_code(state: str, code: str):
         scopes=SCOPES,
         redirect_uri=REDIRECT_URI,
         state=state,
+        code_verifier=code_verifier,
     )
     os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
     flow.fetch_token(code=code)
@@ -814,6 +816,7 @@ async def complete_oauth(bot, state: str, code: str, expected_chat: int | None =
     if entry is not None:
         save_states(states)
     chat_id = None
+    verifier = entry.get("cv") if isinstance(entry, dict) else None
     if isinstance(entry, dict) and time.time() - entry.get("ts", 0) < OAUTH_STATE_TTL:
         chat_id = entry.get("chat_id")
     if chat_id is not None and (not is_allowed(chat_id) or (expected_chat is not None and int(chat_id) != int(expected_chat))):
@@ -821,7 +824,7 @@ async def complete_oauth(bot, state: str, code: str, expected_chat: int | None =
     if not chat_id or not code:
         return False, "sesión expirada o inválida"
     try:
-        creds, name = await _run_in_executor(_exchange_code, state, code)
+        creds, name = await _run_in_executor(_exchange_code, state, code, verifier)
     except Exception as e:
         log.warning(f"No se pudo completar la conexión con Google: {e}")
         return False, "Google rechazó el código (puede haber vencido)"
@@ -904,13 +907,31 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
+def revocar_en_google(user: dict) -> bool:
+    """Anula el permiso en la cuenta de Google (deja de figurar en myaccount.google.com/permissions)."""
+    import requests
+    tok = user.get("refresh_token") or user.get("token")
+    if not tok:
+        return False
+    try:
+        r = requests.post("https://oauth2.googleapis.com/revoke", data={"token": tok},
+                          headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15)
+        return r.status_code == 200
+    except Exception as e:
+        log.warning(f"No se pudo revocar el permiso en Google: {type(e).__name__}")
+        return False
+
 async def cmd_desconectar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_chat.id)
     if uid in users_db:
-        del users_db[uid]
+        user = users_db.pop(uid)
         save_users(users_db)
+        revocado = await _run_in_executor(revocar_en_google, user)
         await update.message.reply_text(
-            "🔓 Cuenta desconectada. Usá /start para volver a conectar tu Google Drive."
+            "🔓 Cuenta desconectada" + (" y permiso revocado en Google." if revocado else
+            ".\n⚠️ No pude revocar el permiso en Google: quitalo a mano en "
+            "myaccount.google.com/permissions") +
+            "\n\nUsá /start para volver a conectar tu Google Drive."
         )
     else:
         await update.message.reply_text("No tenías ninguna cuenta conectada.")
@@ -940,10 +961,42 @@ async def cmd_ayuda(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(texto, parse_mode="Markdown")
 
+MAX_MONTO = 100_000_000_000   # cien mil millones: más que eso es un error de tipeo
+MAX_NOMBRE = 80               # largo máximo de descripciones y nombres
+
 def _leer_monto(texto: str):
-    """Monto > 0 o None."""
+    """Monto entre 0 y MAX_MONTO, o None."""
     v = parse_monto(texto)
-    return v if v is not None and v > 0 else None
+    return v if v is not None and 0 < v <= MAX_MONTO else None
+
+_INVISIBLES = re.compile(r"[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+
+def limpiar_nombre(texto: str, largo: int = MAX_NOMBRE) -> str:
+    """Saca caracteres de control e invisibles (incluidos los que invierten el texto),
+    junta espacios y corta al largo máximo."""
+    t = _INVISIBLES.sub("", str(texto))
+    return " ".join(t.split())[:largo].strip()
+
+def partir(texto: str, limite: int = 4000) -> list[str]:
+    """Divide un mensaje largo en partes de hasta `limite` caracteres, cortando entre líneas
+    (Telegram rechaza mensajes de más de 4096 caracteres)."""
+    partes, actual = [], ""
+    for linea in texto.split("\n"):
+        while len(linea) > limite:
+            if actual:
+                partes.append(actual); actual = ""
+            partes.append(linea[:limite]); linea = linea[limite:]
+        if len(actual) + len(linea) + 1 > limite:
+            partes.append(actual); actual = linea
+        else:
+            actual = f"{actual}\n{linea}" if actual else linea
+    if actual:
+        partes.append(actual)
+    return partes or [""]
+
+async def responder(message, texto: str, **kw):
+    for parte in partir(texto):
+        await message.reply_text(parte, **kw)
 
 def _hoy_iso() -> str:
     return now_ar().strftime("%Y-%m-%d")
@@ -969,11 +1022,11 @@ async def cmd_gasto(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     monto = _leer_monto(args[0])
     if monto is None:
-        await update.message.reply_text("No pude leer el monto. Ej: /gasto 4.500 super")
+        await update.message.reply_text("Monto inválido (entre 1 y 100.000.000.000). Ej: /gasto 4.500 super")
         return
     palabras = args[1:]
     cat = palabras[0].lower()
-    desc = " ".join(palabras[1:]).strip()
+    desc = limpiar_nombre(" ".join(palabras[1:]))
     y, m = mes_actual()
 
     def cambio(st, perp):
@@ -1045,9 +1098,9 @@ async def cmd_ingreso(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     monto = _leer_monto(args[0])
     if monto is None:
-        await update.message.reply_text("No pude leer el monto. Ej: /ingreso 850.000 sueldo")
+        await update.message.reply_text("Monto inválido (entre 1 y 100.000.000.000). Ej: /ingreso 850.000 sueldo")
         return
-    desc = " ".join(args[1:]).strip() or "Ingreso"
+    desc = limpiar_nombre(" ".join(args[1:])) or "Ingreso"
     es_sueldo = desc.lower() in ("sueldo", "salario")
     y, m = mes_actual()
 
@@ -1084,11 +1137,11 @@ async def cmd_tarjeta(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Uso: /tarjeta NOMBRE MONTO\nEj: /tarjeta visa 150000")
         return
     # El monto va al final (también se acepta al principio: /tarjeta 150000 visa)
-    monto = _leer_monto(args[-1]); nombre = " ".join(args[:-1])
+    monto = _leer_monto(args[-1]); nombre = limpiar_nombre(" ".join(args[:-1]))
     if monto is None:
-        monto = _leer_monto(args[0]); nombre = " ".join(args[1:])
+        monto = _leer_monto(args[0]); nombre = limpiar_nombre(" ".join(args[1:]))
     if monto is None:
-        await update.message.reply_text("No pude leer el monto. Ej: /tarjeta visa 150.000")
+        await update.message.reply_text("Monto inválido (entre 1 y 100.000.000.000). Ej: /tarjeta visa 150.000")
         return
     y, m = mes_actual()
 
@@ -1146,7 +1199,7 @@ async def cmd_resumen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         log.exception(e)
         await update.message.reply_text("❌ Error al leer los datos de Drive.")
         return
-    await update.message.reply_text(build_resumen(st, y, m), parse_mode="Markdown")
+    await responder(update.message, build_resumen(st, y, m), parse_mode="Markdown")
 
 async def cmd_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Muestra un teclado con los últimos 12 meses para elegir cuál ver."""
@@ -1179,7 +1232,10 @@ async def callback_historial(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         creds = creds_from_dict(users_db[uid])
         st = await leer_mes_async(creds, y, m)
-        await query.edit_message_text(build_resumen(st, y, m), parse_mode="Markdown")
+        primera, *resto = partir(build_resumen(st, y, m))
+        await query.edit_message_text(primera, parse_mode="Markdown")
+        for parte in resto:
+            await query.message.reply_text(parte, parse_mode="Markdown")
     except Exception as e:
         log.exception(e)
         await query.edit_message_text("❌ Error al leer los datos de Drive.")
@@ -1199,7 +1255,7 @@ async def cmd_comparar(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Error al leer los datos de Drive.")
         return
     if not ant:
-        await update.message.reply_text(
+        await responder(update.message,
             f"📭 No hay datos de {mes_label(yp, mp)} para comparar. Este es el mes actual:\n\n"
             + build_resumen(act, ya, ma), parse_mode="Markdown")
         return
@@ -1363,8 +1419,8 @@ async def msg_nuevo_servicio(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not ctx.user_data.get("esperando_srv_nombre"):
         return  # No es nuestro mensaje
     uid = str(update.effective_chat.id)
-    nombre = update.message.text.strip()
-    if not nombre or len(nombre) > 50:
+    nombre = limpiar_nombre(update.message.text, 50)
+    if not nombre or len(update.message.text.strip()) > 50:
         await update.message.reply_text("El nombre debe tener entre 1 y 50 caracteres.")
         return
     ctx.user_data.pop("esperando_srv_nombre", None)
@@ -1373,14 +1429,14 @@ async def msg_nuevo_servicio(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         servicios = await read_servicios_async(creds)
         # Verificar duplicado
         if any(s["name"].lower() == nombre.lower() for s in servicios):
-            await update.message.reply_text(f"Ya existe un servicio llamado *{nombre}*.", parse_mode="Markdown")
+            await update.message.reply_text(f"Ya existe un servicio llamado {md(nombre)}.", parse_mode="Markdown")
             return
         nuevo = {"id": str(_uuid.uuid4()), "name": nombre}
         servicios.append(nuevo)
         await write_servicios_async(creds, servicios)
         await update.message.reply_text(
-            f"✅ Servicio *{nombre}* creado.\n\n"
-            f"Ahora podés cargar su monto con:\n`/gasto MONTO {nombre.lower()}`",
+            f"✅ Servicio creado: {md(nombre)}\n\n"
+            f"Ahora podés cargar su monto con:\n/gasto MONTO {md(nombre.lower())}",
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -1445,6 +1501,9 @@ async def callback_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+COMP_TIPOS = {"pdf": "application/pdf", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+              "png": "image/png", "webp": "image/webp"}
+
 async def msg_recibir_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Recibe el archivo/foto y lo sube a Drive."""
     if not ctx.user_data.get("esperando_comp"):
@@ -1460,8 +1519,12 @@ async def msg_recibir_comprobante(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 
     if update.message.document:
         doc = update.message.document
-        mime = doc.mime_type or mime
-        ext  = doc.file_name.rsplit(".", 1)[-1] if doc.file_name and "." in doc.file_name else "pdf"
+        ext = doc.file_name.rsplit(".", 1)[-1].lower() if doc.file_name and "." in doc.file_name else ""
+        mime = COMP_TIPOS.get(ext)
+        if not mime or (doc.mime_type and doc.mime_type != mime) or (doc.file_size or 0) > 20 * 1024 * 1024:
+            await update.message.reply_text(
+                "Sólo acepto PDF, JPG, PNG o WEBP de hasta 20 MB. Mandá otro archivo.")
+            return
         file_obj = doc
     elif update.message.photo:
         file_obj = update.message.photo[-1]  # mayor resolución
@@ -1653,16 +1716,12 @@ async def notif_nuevo_mes(ctx: ContextTypes.DEFAULT_TYPE):
             creds = creds_from_dict(users_db[uid])
             st = await leer_mes_async(creds, ya, ma)
             resumen = build_resumen(st, ya, ma)
-            await ctx.bot.send_message(
-                chat_id=int(uid),
-                text=(
-                    f"📅 *¡Comenzó {nuevo_label}!*\n\n"
-                    f"Aquí el resumen del mes que cerró:\n\n"
-                    f"{resumen}\n\n"
-                    f"🆕 Ya podés empezar a cargar los datos de {nuevo_label}."
-                ),
-                parse_mode="Markdown"
-            )
+            texto = (f"📅 *¡Comenzó {nuevo_label}!*\n\n"
+                     f"Aquí el resumen del mes que cerró:\n\n"
+                     f"{resumen}\n\n"
+                     f"🆕 Ya podés empezar a cargar los datos de {nuevo_label}.")
+            for parte in partir(texto):
+                await ctx.bot.send_message(chat_id=int(uid), text=parte, parse_mode="Markdown")
         except Exception as e:
             log.warning(f"No se pudo notificar a {uid}: {e}")
     _notif_mark("nuevo_mes", ym)
@@ -1805,7 +1864,9 @@ def main():
         if not ALLOWED_CHAT_IDS:
             log.warning("ALLOWED_CHAT_IDS está vacío: el bot no atiende a nadie hasta configurarlo.")
 
-        runner = web.AppRunner(web_app)
+        # access_log=None: el log de accesos guardaría la URL completa del regreso de Google
+        # (con el código de autorización) en journalctl
+        runner = web.AppRunner(web_app, access_log=None)
         await runner.setup()
         await web.TCPSite(runner, BIND_HOST, PORT).start()
         log.info(f"Esperando el regreso de Google en {REDIRECT_URI} (escuchando en {BIND_HOST}:{PORT})")

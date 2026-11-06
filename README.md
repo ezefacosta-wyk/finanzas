@@ -59,7 +59,19 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
 - `.env` (token y secreto) y `data/` (tu sesión de Google) quedan sólo en tu PC con permisos `600`/`700`
   y están en `.gitignore`: **nunca** se suben al repo.
 - El bot sólo atiende a los chats de `ALLOWED_CHAT_IDS`.
-- El servicio corre con tu usuario, sin privilegios, y sólo puede escribir en `data/`.
+- El servicio corre con tu usuario, sin privilegios, sólo puede escribir en `data/` y está encerrado por
+  systemd (`systemd-analyze security finanzas-bot` ≈ 1,6). Si en tu Linux alguna restricción impidiera
+  arrancar, `instalar.sh`/`actualizar.sh` lo detectan y agregan
+  `/etc/systemd/system/finanzas-bot.service.d/compat.conf`, que afloja sólo esas.
+- `/desconectar` borra la sesión de tu PC y además revoca el permiso en tu cuenta de Google.
+- No se guardan en el log las direcciones de regreso de Google (llevan el código de autorización).
+
+## Web
+- La lógica está en `app.js` (no hay JavaScript dentro de `index.html`): la Content-Security-Policy prohíbe
+  scripts inline, así que aunque alguien lograra inyectar HTML, no se ejecutaría. Los botones usan
+  `data-click` / `data-change` / `data-toggle` con la lista de acciones permitidas al final de `app.js`.
+- Al modificar `app.js`, cambiá el `?v=` de `<script src="app.js?v=…">` en `index.html` para que los
+  navegadores no usen la versión vieja guardada.
 
 ### Configuración (`.env`)
 | Variable | Valor |

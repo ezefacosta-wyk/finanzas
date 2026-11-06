@@ -29,6 +29,25 @@ ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
 UMask=0077
+# Más encierro (systemd-analyze security: de 7,5 a 1,2). Si en tu Linux alguna de estas líneas
+# impidiera arrancar, instalar.sh / actualizar.sh lo detectan y agregan compat.conf, que las afloja.
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target
