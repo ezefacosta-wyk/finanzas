@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <!-- Seguridad: la página sólo puede cargar código propio y hablar con Google; si alguien lograra inyectar código,
      no podría mandar datos a otro servidor ni cargar scripts de afuera. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
@@ -11,6 +11,15 @@
 <style id="antiFrame">html{display:none!important}</style>
 <script src="antiframe.js"></script>
 <title>Mis finanzas</title>
+<!-- Instalable como app en Android (y en la pantalla de inicio de iPhone) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="lib/tabler/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -147,7 +156,20 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .diff-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}
 .diff-pill.up{background:var(--danger-bg);color:var(--danger)}.diff-pill.down{background:var(--success-bg);color:var(--success)}.diff-pill.same{background:var(--bg3);color:var(--ink4)}
 .diff-bar-wrap{width:60px;height:4px;background:var(--bg3);border-radius:2px;display:inline-block;vertical-align:middle;margin-left:6px;overflow:hidden}
-.diff-bar-fill{height:100%;border-radius:2px}.comp-total-row td{font-weight:600;padding-top:10px;border-top:1px solid var(--border2) !important}
+.diff-bar-fill{height:100%;border-radius:2px}
+.diff-pill .nw{white-space:nowrap}
+.diff-pill .sg{display:none}.comp-total-row td{font-weight:600;padding-top:10px;border-top:1px solid var(--border2) !important}
+/* Comparación en pantallas angostas: entra en 360–412px sin ensanchar la página */
+#comp-content{overflow-x:auto}
+@media(max-width:600px){
+  .comp-table{font-size:12px}
+  .comp-table td,.comp-table thead th{padding-left:3px;padding-right:3px}
+  .comp-table td.cat{gap:4px}
+  .diff-bar-wrap{display:none}
+  .diff-pill{padding:2px 6px;font-size:10.5px;white-space:normal;justify-content:flex-end;text-align:right}
+  .diff-pill i{display:none}
+}
+@media(max-width:400px){.diff-pill:has(.pct) .amt{display:none}.diff-pill .sg{display:inline}.comp-table{font-size:11.5px}.comp-table td.cat i{display:none}.comp-table td.cat{gap:0}.diff-pill{font-size:10px;padding:2px 5px;gap:2px}}
 .no-data-prev{text-align:center;padding:24px;color:var(--ink4);font-size:13px}
 .no-data-prev i{font-size:28px;display:block;margin-bottom:8px;opacity:.3}
 
@@ -618,6 +640,25 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 }
 @media(min-width:1200px){.header{margin:-1.75rem -2.5rem 22px;padding:0 2.5rem}}
 @media(min-width:1600px){.header{margin:-2rem -3rem 24px;padding:0 3rem}}
+
+/* ── Navegación inferior (menos de 1024px, con sesión iniciada) ── */
+.bnav{display:none}
+@media(max-width:1023px){
+  body.con-sesion{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  body.con-sesion .bnav{display:flex}
+  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:80;background:var(--bg2);border-top:1px solid var(--border2);
+    padding:6px max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));justify-content:space-around}
+  .bnav-item{flex:1;max-width:96px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:4px 0;color:var(--ink3);font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bnav-ic{position:relative;width:56px;height:30px;border-radius:15px;display:grid;place-items:center;font-size:21px;transition:background .18s}
+  .bnav-lbl{font-size:11.5px;font-weight:500;letter-spacing:.01em}
+  .bnav-item.active{color:var(--ink)}
+  .bnav-item.active .bnav-ic{background:var(--accent-bg);color:var(--accent)}
+  .bnav-item:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:12px}
+  .bnav-badge{position:absolute;top:-2px;right:8px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--bg2)}
+  .bnav-badge.warn{background:var(--warn);color:#1a1300}
+  body.con-sesion .offline-badge{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+}
+@media(prefers-reduced-motion:reduce){.bnav-ic{transition:none}}
 </style>
 </head>
 <body>
@@ -843,9 +884,18 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 </div>
 </div>
 
+<!-- Navegación inferior (celular y tablet; en escritorio se usa el menú) -->
+<nav class="bnav" id="bottomNav" aria-label="Secciones">
+  <button class="bnav-item active" id="bnav-resumen" data-click="navTo" data-arg="resumen"><span class="bnav-ic"><i class="ti ti-layout-dashboard"></i></span><span class="bnav-lbl">Resumen</span></button>
+  <button class="bnav-item" id="bnav-ingresos" data-click="navTo" data-arg="ingresos"><span class="bnav-ic"><i class="ti ti-wallet"></i></span><span class="bnav-lbl">Ingresos</span></button>
+  <button class="bnav-item" id="bnav-tarjetas" data-click="navTo" data-arg="tarjetas"><span class="bnav-ic"><i class="ti ti-credit-card"></i><span class="bnav-badge" id="bnav-badge-tarjetas" hidden></span></span><span class="bnav-lbl">Tarjetas</span></button>
+  <button class="bnav-item" id="bnav-servicios" data-click="navTo" data-arg="servicios"><span class="bnav-ic"><i class="ti ti-building"></i><span class="bnav-badge warn" id="bnav-badge-servicios" hidden></span></span><span class="bnav-lbl">Servicios</span></button>
+  <button class="bnav-item" id="bnav-gastos" data-click="navTo" data-arg="gastos"><span class="bnav-ic"><i class="ti ti-shopping-cart"></i></span><span class="bnav-lbl">Gastos</span></button>
+</nav>
+
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/pdf.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=eae8b22989"></script>
+<script src="app.js?v=092cca9fd5"></script>
 </body>
 </html>

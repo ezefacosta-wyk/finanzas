@@ -67,6 +67,10 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
 - No se guardan en el log las direcciones de regreso de Google (llevan el código de autorización).
 
 ## Web
+- **Instalarla en el teléfono (Android):** abrí la web en Chrome → menú ⋮ → *Instalar app* (o *Agregar a
+  la pantalla principal*). Queda con su ícono y se abre a pantalla completa, sin la barra de Chrome.
+  En iPhone: Safari → Compartir → *Agregar a inicio*.
+- En el celular las secciones están en la barra de abajo; en la PC, en el menú desplegable.
 - La lógica está en `app.js` (no hay JavaScript dentro de `index.html`): la Content-Security-Policy prohíbe
   scripts inline, así que aunque alguien lograra inyectar HTML, no se ejecutaría. Los botones usan
   `data-click` / `data-change` / `data-toggle` con la lista de acciones permitidas al final de `app.js`.
