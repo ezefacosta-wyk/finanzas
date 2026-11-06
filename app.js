@@ -67,8 +67,8 @@ async function signOut(){
   let enDrive=true;
   if(pushTimer&&accessToken){clearTimeout(pushTimer);pushTimer=null;await saveMonthToDrive();enDrive=!document.getElementById('syncInfo').className.includes('err');}
   try{if(accessToken&&window.google)google.accounts.oauth2.revoke(accessToken);}catch(e){}
-  document.body.classList.remove('con-sesion');
-  accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;dataFolderId=null;dataMigrated=false;serviciosPerpetuas=[];
+  document.body.classList.remove('con-sesion');cerrarCuenta();
+  accessToken=null;driveFileId=null;serviciosFileId=null;rootFolderId=null;dataFolderId=null;dataMigrated=false;serviciosPerpetuas=[];syncEstado='ok';refrescarNube();
   try{if(typeof monthFileIds==='object')Object.keys(monthFileIds).forEach(k=>delete monthFileIds[k]);}catch(e){}
   // 2) Borrar de este navegador el token y los datos financieros (quedan en tu Drive).
   //    Si el último cambio no se pudo subir, los datos se conservan para no perderlos.
@@ -312,7 +312,24 @@ const fid=await findDriveFile();if(!fid){setSyncInfo('Sin datos en la nube aún'
 async function pushToDrive(){if(!accessToken)return;setSyncInfo('<i class="ti ti-loader"></i> Guardando...','spin');try{const datos=await getDataFolder();if(!datos){setSyncInfo('Error: carpeta Drive','err');return;}const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('fin4_'))d[k]=localStorage.getItem(k);}const fid=await findDriveFile();const newId=await writeJsonFile(DRIVE_FILE,datos,d,fid||null);if(newId&&!driveFileId){driveFileId=newId;localStorage.setItem('fin_gdrive_fileid',newId);}const ts=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});setSyncInfo('Guardado '+ts+' ✓','ok');}catch(e){setSyncInfo('Error al guardar','err');}}
 function setSyncInfo(msg,type){const el=document.getElementById('syncInfo');el.innerHTML=msg;el.className='sync-info'+(type?' '+type:'');syncDrawerUser();updateHdrSync(type,el.textContent.trim());}
 // Indicador de sincronización en la cabecera (reemplaza la franja con avatar y Salir)
-function updateHdrSync(type,txt){const h=document.getElementById('hdrSync');if(!h)return;const ic={spin:'ti-loader-2 spin',ok:'ti-cloud-check',err:'ti-cloud-off'}[type]||'ti-cloud';h.className='hdr-sync'+(type?' '+type:'');const t=txt||'Sin cambios pendientes';h.innerHTML='<i class="ti '+ic+'"></i><span class="hdr-sync-txt">'+esc(t.replace(/✓/g,'').trim()||'Sincronizado')+'</span>';h.title=t;h.setAttribute('aria-label',t);}
+// Nube del encabezado: gris = desconectado (sin sesión o sin internet), rojo = no se pudo sincronizar,
+// verde = sincronizado. Mientras se guarda o se carga, late en el color que tenía.
+let syncEstado='ok',syncUlt={type:'',txt:''};
+function nubeEstado(){if(!accessToken||!navigator.onLine)return 'off';return syncEstado;}
+function nubeTexto(est){return est==='off'?(accessToken&&!navigator.onLine?'Sin conexión a internet':'Desconectado'):est==='err'?'No se pudo sincronizar':'Sincronizado';}
+function updateHdrSync(type,txt){syncUlt={type:type||'',txt:txt||''};
+  if(type==='ok'||type==='err')syncEstado=type;else if(!type&&accessToken)syncEstado='ok';
+  const h=document.getElementById('hdrSync');if(!h)return;
+  const est=nubeEstado(),late=type==='spin'&&est!=='off';
+  const ic={off:'ti-cloud-off',ok:'ti-cloud-check',err:'ti-cloud-x'}[est];
+  const detalle=(txt||'').replace(/✓/g,'').trim();
+  const t=late?(detalle||'Guardando…'):nubeTexto(est)+(est==='err'&&detalle?' · '+detalle:'');
+  h.className='hdr-sync '+est+(late?' late':'');
+  h.innerHTML='<i class="ti '+ic+'" aria-hidden="true"></i><span class="hdr-sync-txt">'+esc(est==='off'?nubeTexto(est):(detalle||nubeTexto(est)))+'</span>';
+  h.title=t;h.setAttribute('aria-label',t);
+  const cs=document.getElementById('cuentaSync');if(cs){cs.className='cuenta-sync '+est;cs.textContent=t;}
+}
+function refrescarNube(){updateHdrSync(syncUlt.type,syncUlt.txt);}
 function schedulePush(){dirty=true;clearTimeout(pushTimer);pushTimer=setTimeout(()=>{saveMonthToDrive();updateDrawerBadges();},800);}
 async function init(){document.getElementById('loginScreen').style.display='block';document.body.classList.remove('con-sesion');const saved=tokenLeer();if(saved){accessToken=saved;try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});if(r.ok){await fetchUserInfo();await loadFromDrive();showApp();return;}}catch(e){}tokenBorrar();accessToken=null;}}
 
@@ -469,7 +486,21 @@ function showTab(name){
   // En desktop: Resumen vuelve al dashboard
   if(isDesktop()&&name==='resumen'&&!document.getElementById('desktopDashboard').classList.contains('visible'))showApp();
 }
-function syncDrawerUser(){const n=document.getElementById('driveName'),a=document.getElementById('driveAvatar'),s=document.getElementById('syncInfo');const dn=document.getElementById('drawerName'),da=document.getElementById('drawerAvatar'),ds=document.getElementById('drawerSync');if(n&&dn)dn.textContent=n.textContent||'—';if(a&&da)da.textContent=a.textContent||'?';const ha=document.getElementById('hdrAv');if(a&&ha){ha.textContent=a.textContent||'?';ha.title=(n&&n.textContent)||'';}if(s&&ds)ds.textContent=s.textContent||'';}
+// Cuenta (celular): ícono en la barra inferior → hoja con el nombre, el estado de sincronización y Salir
+function abrirCuenta(){if(document.getElementById('cuentaSheet'))return;
+  const n=document.getElementById('driveName')?.textContent||'',a=document.getElementById('driveAvatar');
+  const ov=document.createElement('div');ov.className='hist-modal';ov.id='cuentaSheet';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','Tu cuenta');
+  ov.innerHTML=`<div class="hist-box cuenta-box">
+    <div class="cuenta-head"><div class="user-avatar cuenta-av" style="background:${esc(a?.style.background||'')}">${esc(a?.textContent||'?')}</div>
+      <div class="cuenta-info"><div class="cuenta-nombre">${esc(n||'Tu cuenta')}</div><div class="cuenta-sync" id="cuentaSync"></div></div>
+      <button class="btn-icon" data-click="cerrarCuenta" aria-label="Cerrar"><i class="ti ti-x" style="font-size:18px"></i></button></div>
+    <button class="btn cuenta-salir" data-click="signOutCuenta"><i class="ti ti-logout"></i> Salir</button></div>`;
+  ov.addEventListener('click',e=>{if(e.target===ov)cerrarCuenta();});
+  document.body.appendChild(ov);refrescarNube();ov.querySelector('.cuenta-salir').focus();
+  document.getElementById('bnav-cuenta')?.setAttribute('aria-expanded','true');}
+function cerrarCuenta(){document.getElementById('cuentaSheet')?.remove();document.getElementById('bnav-cuenta')?.setAttribute('aria-expanded','false');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarCuenta();});
+function syncDrawerUser(){const n=document.getElementById('driveName'),a=document.getElementById('driveAvatar'),s=document.getElementById('syncInfo');const dn=document.getElementById('drawerName'),da=document.getElementById('drawerAvatar'),ds=document.getElementById('drawerSync');if(n&&dn)dn.textContent=n.textContent||'—';if(a&&da)da.textContent=a.textContent||'?';const ba=document.getElementById('bnavAv');if(a&&ba){ba.textContent=a.textContent||'?';ba.style.background=a.style.background||'';}const ha=document.getElementById('hdrAv');if(a&&ha){ha.textContent=a.textContent||'?';ha.title=(n&&n.textContent)||'';}if(s&&ds)ds.textContent=s.textContent||'';}
 function totalIngresos(s){const st=s||state;return nv(st.sueldo)+st.extras.reduce((a,e)=>a+e.amt,0);}
 function calcTarjetasPagadas(s){const st=s||state;return st.tarjetas.reduce((a,t)=>a+nv(t.pagado)+t.extraPagos.reduce((s2,p)=>s2+p.amt,0),0);}
 function totalPagadoTarjetas(){return calcTarjetasPagadas();}
@@ -785,8 +816,8 @@ function updateOfflineBadge(){
   const b=document.getElementById('offlineBadge');
   if(b)b.classList.toggle('show',!navigator.onLine);
 }
-window.addEventListener('online',()=>{updateOfflineBadge();if(accessToken)saveMonthToDrive();});
-window.addEventListener('offline',updateOfflineBadge);
+window.addEventListener('online',()=>{updateOfflineBadge();refrescarNube();if(accessToken)saveMonthToDrive();});
+window.addEventListener('offline',()=>{updateOfflineBadge();refrescarNube();});
 
 /* ══════════════════════════════════════════════
    PUNTO 2 — HISTORIAL DE TARJETAS
@@ -963,6 +994,7 @@ const ACCIONES={
     uploadComprobante:el=>uploadComprobante(el.dataset.id,el.dataset.name,el.dataset.mes),
     closeCompModal:()=>{document.getElementById('comp-modal-area').innerHTML='';},
     addGastoExtra:()=>addGastoExtra(), removeGastoExtra:el=>removeGastoExtra(+el.dataset.i),
+    abrirCuenta:()=>abrirCuenta(), cerrarCuenta:()=>cerrarCuenta(), signOutCuenta:()=>{cerrarCuenta();signOut();},
   },
   change:{
     setSueldo:el=>{state.sueldo=parseMoney(el.value);save();recalc();},

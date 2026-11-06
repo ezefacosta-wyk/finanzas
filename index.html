@@ -520,8 +520,11 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .header-right{flex-wrap:nowrap;flex-shrink:0}
 .m-short{display:none}
 .hdr-sync{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;color:var(--ink3);font-size:18px;flex-shrink:0}
-.hdr-sync.ok{color:var(--success)}.hdr-sync.err{color:var(--danger)}.hdr-sync.spin{color:var(--accent)}
-.hdr-sync .spin,.hdr-sync.spin i{animation:hdrspin 1s linear infinite}@keyframes hdrspin{to{transform:rotate(360deg)}}
+.hdr-sync.ok{color:var(--success)}.hdr-sync.err{color:var(--danger)}.hdr-sync.off{color:var(--ink3)}
+.hdr-sync.late i{animation:nubelate 1.2s ease-in-out infinite}
+@keyframes nubelate{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.hdr-sync.late i{animation:none}}
+@keyframes hdrspin{to{transform:rotate(360deg)}}
 .dnav-badge{font-size:11px;padding:2px 8px;white-space:nowrap}
 .page-col{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:1rem}
 .page-col>.card{margin-bottom:0;min-width:0}
@@ -657,8 +660,25 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   .bnav-badge{position:absolute;top:-2px;right:8px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--danger);color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--bg2)}
   .bnav-badge.warn{background:var(--warn);color:#1a1300}
   body.con-sesion .offline-badge{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  /* sin menú lateral: las secciones están en la barra y la cuenta en su ícono */
+  #menuBtn,#navDrawer,#drawerOverlay{display:none!important}
+  .hdr-title{display:block;min-width:0;font-size:18px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .header{flex-wrap:nowrap}
+  .bnav-item{max-width:84px}
+  .bnav-ic{width:52px}
+  .bnav-av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;background:var(--accent)}
+  .bnav-item.cuenta-abierta .bnav-ic,#bnav-cuenta[aria-expanded="true"] .bnav-ic{background:var(--accent-bg)}
 }
 @media(prefers-reduced-motion:reduce){.bnav-ic{transition:none}}
+.cuenta-box{display:flex;flex-direction:column;gap:16px;padding-bottom:calc(1.25rem + env(safe-area-inset-bottom,0px))}
+.cuenta-head{display:flex;align-items:center;gap:12px}
+.cuenta-av{width:44px;height:44px;font-size:15px;flex-shrink:0}
+.cuenta-info{flex:1;min-width:0}
+.cuenta-nombre{font-size:16px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuenta-sync{font-size:13px;color:var(--ink3);display:flex;align-items:center;gap:6px}
+.cuenta-sync::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+.cuenta-sync.ok{color:var(--success)}.cuenta-sync.err{color:var(--danger)}.cuenta-sync.off{color:var(--ink3)}
+.cuenta-salir{justify-content:center;color:var(--danger);border-color:rgba(248,113,113,.35);min-height:46px;font-weight:600}
 </style>
 </head>
 <body>
@@ -891,11 +911,12 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   <button class="bnav-item" id="bnav-tarjetas" data-click="navTo" data-arg="tarjetas"><span class="bnav-ic"><i class="ti ti-credit-card"></i><span class="bnav-badge" id="bnav-badge-tarjetas" hidden></span></span><span class="bnav-lbl">Tarjetas</span></button>
   <button class="bnav-item" id="bnav-servicios" data-click="navTo" data-arg="servicios"><span class="bnav-ic"><i class="ti ti-building"></i><span class="bnav-badge warn" id="bnav-badge-servicios" hidden></span></span><span class="bnav-lbl">Servicios</span></button>
   <button class="bnav-item" id="bnav-gastos" data-click="navTo" data-arg="gastos"><span class="bnav-ic"><i class="ti ti-shopping-cart"></i></span><span class="bnav-lbl">Gastos</span></button>
+  <button class="bnav-item" id="bnav-cuenta" data-click="abrirCuenta" aria-haspopup="dialog" aria-expanded="false"><span class="bnav-ic"><span class="bnav-av" id="bnavAv">?</span></span><span class="bnav-lbl">Cuenta</span></button>
 </nav>
 
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/pdf.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=092cca9fd5"></script>
+<script src="app.js?v=767b2056af"></script>
 </body>
 </html>
