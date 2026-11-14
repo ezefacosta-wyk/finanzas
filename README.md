@@ -48,7 +48,7 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
 |---|---|
 | Ver el log en vivo | `journalctl -u finanzas-bot -f` |
 | Reiniciar / detener | `sudo systemctl restart finanzas-bot` / `sudo systemctl stop finanzas-bot` |
-| Actualizar a la última versión | `bash deploy/actualizar.sh` |
+| Actualizar a la última versión | `bash deploy/actualizar.sh` (si cambió algo de `deploy/` o de las dependencias, te muestra el cambio y pide confirmación) |
 | Desinstalar | `sudo systemctl disable --now finanzas-bot && sudo rm /etc/systemd/system/finanzas-bot.service` |
 
 - Si la PC se suspende, el bot deja de responder: en *Energía* configurá **no suspender**.
@@ -65,11 +65,21 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
   `/etc/systemd/system/finanzas-bot.service.d/compat.conf`, que afloja sólo esas.
 - `/desconectar` borra la sesión de tu PC y además revoca el permiso en tu cuenta de Google.
 - No se guardan en el log las direcciones de regreso de Google (llevan el código de autorización).
+- Las dependencias se instalan desde `requirements.lock`: todas las versiones fijas (también las indirectas)
+  y con hashes, así pip rechaza cualquier paquete alterado. Para cambiar una, editá `requirements.txt` y
+  regenerá el lock con el comando que está al principio de ese archivo.
+- `actualizar.sh` usa sudo para reinstalar el servicio: antes de aplicar cambios en `deploy/` o en las
+  dependencias los muestra y pide confirmación, y nunca instala una plantilla que pida correr algo como
+  administrador. Tené activada la verificación en dos pasos de GitHub: quien pudiera subir código al repo
+  podría intentar colarse en tu PC con la próxima actualización.
 
 ## Web
 - **Instalarla en el teléfono (Android):** abrí la web en Chrome → menú ⋮ → *Instalar app* (o *Agregar a
   la pantalla principal*). Queda con su ícono y se abre a pantalla completa, sin la barra de Chrome.
   En iPhone: Safari → Compartir → *Agregar a inicio*.
+- Los datos del mes quedan guardados en el navegador para trabajar más rápido, a nombre de tu cuenta de
+  Google. Si en la misma compu entra otra cuenta, los tuyos se apartan (no los ve ni se suben a su Drive)
+  y vuelven cuando entrás vos. *Salir* los borra del navegador.
 - En el celular las secciones están en la barra de abajo (el ícono con tus iniciales abre tu cuenta y *Salir*);
   en la PC, en el menú desplegable.
 - La nube de arriba indica la sincronización: verde = sincronizado, rojo = no se pudo guardar,

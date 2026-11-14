@@ -17,8 +17,15 @@ _servicio_ok() {
 }
 
 instalar_servicio() {   # instalar_servicio USUARIO DIR
-  local usuario="$1" dir="$2"
-  sed -e "s|__USUARIO__|${usuario}|g" -e "s|__DIR__|${dir}|g" "${dir}/deploy/finanzas-bot.service" | sudo tee "$UNIT" >/dev/null
+  local usuario="$1" dir="$2" unidad
+  unidad="$(sed -e "s|__USUARIO__|${usuario}|g" -e "s|__DIR__|${dir}|g" "${dir}/deploy/finanzas-bot.service")"
+  # El servicio nunca debe correr nada como administrador: se rechaza una plantilla que lo pida
+  if [ "$usuario" = "root" ] || ! grep -qx "User=${usuario}" <<<"$unidad" \
+     || grep -qiE '^\s*(User|Group)=(root|0)\s*$|^\s*Exec[A-Za-z]*=\s*[-@:]*[+!]|^\s*PermissionsStartOnly' <<<"$unidad"; then
+    echo "✘ La plantilla del servicio pide correr algo como administrador. No se instala." >&2
+    return 1
+  fi
+  printf '%s\n' "$unidad" | sudo tee "$UNIT" >/dev/null
   # Siempre se prueba primero la versión endurecida
   sudo rm -f "${DROPIN_DIR}/compat.conf"
   sudo systemctl daemon-reload

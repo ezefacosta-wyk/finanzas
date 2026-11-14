@@ -28,7 +28,7 @@ verde "$(python3 -V) OK"
 echo "== 2/5 Entorno virtual y dependencias"
 [ -d venv ] || python3 -m venv venv
 venv/bin/pip install --quiet --upgrade pip
-venv/bin/pip install --quiet -r requirements.txt
+venv/bin/pip install --quiet --require-hashes -r requirements.lock
 verde "Dependencias instaladas en $DIR/venv"
 
 echo "== 3/5 Configuración (.env) y datos"

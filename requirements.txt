@@ -1,3 +1,6 @@
+# Dependencias directas del bot. La instalación usa requirements.lock (todas las versiones, también
+# las indirectas, con hashes). Si cambiás algo acá, regenerá el lock:
+#   uv pip compile requirements.txt --universal --python-version 3.10 --generate-hashes --no-header -o requirements.lock
 python-telegram-bot[job-queue]==22.8
 google-auth==2.29.0
 google-auth-oauthlib==1.2.0
