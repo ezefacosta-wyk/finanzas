@@ -10,6 +10,8 @@
 <!-- Anti-clickjacking: si otra página intenta mostrar la app dentro de un marco, no se muestra -->
 <style id="antiFrame">html{display:none!important}</style>
 <script src="antiframe.js"></script>
+<script src="tema.js"></script>
+<link rel="stylesheet" href="escritorio.css?v=e621328943" media="(min-width:1024px)">
 <title>Mis finanzas</title>
 <!-- Instalable como app en Android (y en la pantalla de inicio de iPhone) -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -392,125 +394,11 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .signin-card h2{font-size:22px;font-weight:700;margin-bottom:8px;color:var(--ink);letter-spacing:-0.02em}
 .signin-card p{color:var(--ink3);font-size:13px;margin-bottom:1.75rem;line-height:1.7}
 
-/* ── DESKTOP DASHBOARD ── */
-#desktopDashboard{display:none;flex-direction:column;height:100vh;overflow:hidden;background:#0a0e1a}
-#desktopDashboard.visible{display:flex}
-.dd-topbar{height:54px;background:#0f1520;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;padding:0 28px;gap:14px;flex-shrink:0}
-.dd-logo{font-size:15px;font-weight:800;color:#e2e6f0;letter-spacing:-.3px;display:flex;align-items:center;gap:7px}
-.dd-logo-dot{width:8px;height:8px;border-radius:50%;background:#6c8fff}
-.dd-nav{display:flex;gap:2px;margin-left:18px}
-.dd-nav-link{padding:5px 11px;border-radius:8px;font-size:13px;font-weight:600;color:#8892aa;text-decoration:none;cursor:pointer;transition:background .15s}
-.dd-nav-link.active{background:rgba(108,143,255,0.12);color:#e2e6f0;font-weight:700}
-.dd-topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.dd-month-nav{display:flex;align-items:center;gap:6px}
-.dd-month-btn{width:26px;height:26px;border:1px solid rgba(255,255,255,0.12);border-radius:7px;background:rgba(255,255,255,0.04);color:#8892aa;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.dd-month-label{font-size:13px;font-weight:700;color:#e2e6f0;min-width:110px;text-align:center}
-.dd-sync-pill{display:flex;align-items:center;gap:5px;border:1px solid rgba(52,211,153,0.25);background:rgba(52,211,153,0.08);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;color:#34d399}
-.dd-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#6c8fff,#8ba4ff);color:#fff;font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.dd-avatar-btn{background:none;border:none;cursor:pointer;padding:0}
-.dd-body{flex:1;overflow-y:auto;padding:22px 28px;display:flex;flex-direction:column;gap:18px}
-.dd-sec-lbl{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#7f8aa6;margin-bottom:9px}
-.dd-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.dd-kpi{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:15px 17px}
-.dd-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
-.dd-kpi-lbl{font-size:10px;font-weight:700;color:#7f8aa6;text-transform:uppercase;letter-spacing:.06em}
-.dd-kpi-chip{font-size:10px;font-weight:700;border-radius:6px;padding:2px 7px}
-.dd-kpi-val{font-size:25px;font-weight:800;line-height:1;letter-spacing:-.5px;margin-bottom:3px}
-.dd-kpi-sub{font-size:11px;color:#8892aa}
-.dd-kpi-div{height:3px;border-radius:2px;margin-top:11px}
-.dd-two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:13px}
-.dd-panel{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;overflow:hidden}
-.dd-panel-hdr{padding:13px 17px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between}
-.dd-panel-title{font-size:12px;font-weight:700;color:#e2e6f0}
-.dd-panel-amt{font-size:12px;font-weight:700;color:#8892aa}
-.dd-panel-body{padding:4px 17px 13px}
-.dd-card-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
-.dd-card-row:last-of-type{border-bottom:none}
+/* Escritorio: escritorio.css (se carga sólo desde 1024 px). En el celular nada de esto se ve. */
+#desktopDashboard,.dk-bar,.dk-only{display:none}
 .dd-card-ico{width:40px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;letter-spacing:.5px;flex-shrink:0}
 .dd-card-ico svg{display:block}
-.dd-card-info{flex:1;min-width:0}
-.dd-card-name{font-size:12px;font-weight:600;color:#c8d0e0}
-.dd-card-meta{font-size:10px;color:#7f8aa6;margin-top:1px}
-.dd-card-right{text-align:right;flex-shrink:0}
-.dd-card-total{font-size:13px;font-weight:800;color:#e2e6f0}
 .dd-badge{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:2px}
-.dd-svc-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
-.dd-svc-row:last-child{border-bottom:none}
-.dd-svc-bar{width:4px;height:28px;border-radius:2px;flex-shrink:0}
-.dd-svc-info{flex:1}
-.dd-svc-name{font-size:12px;font-weight:600;color:#c8d0e0}
-.dd-svc-sub{font-size:10px;color:#7f8aa6}
-.dd-svc-amt{font-size:12px;font-weight:700;color:#e2e6f0}
-.dd-right-col{display:flex;flex-direction:column;gap:12px}
-.dd-right-panel{background:#151a28;border:1px solid rgba(255,255,255,0.07);border-radius:13px;padding:17px}
-.dd-chart-bars{display:flex;align-items:flex-end;gap:7px;height:72px}
-.dd-bar-g{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
-.dd-bar-inner{flex:1;display:flex;align-items:flex-end;width:100%}
-.dd-bar{width:100%;border-radius:4px 4px 0 0}
-.dd-bar-lbl{font-size:9px;color:#7f8aa6;font-weight:600}
-.dd-bar-lbl.cur{color:#6c8fff;font-weight:800}
-.dd-dist-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
-.dd-dist-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
-.dd-dist-name{flex:1;font-size:11px;color:#8892aa}
-.dd-dist-pct{font-size:11px;font-weight:700;color:#e2e6f0;width:28px;text-align:right;flex-shrink:0}
-.dd-dist-track{flex:2;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden}
-.dd-dist-fill{height:100%;border-radius:3px}
-.dd-left-col{display:flex;flex-direction:column;gap:11px}
-.dd-menu-btn{background:transparent;border:1px solid rgba(255,255,255,0.10);border-radius:10px;color:#e2e6f0;font-size:15px;font-weight:800;letter-spacing:-.3px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
-.dd-menu-btn:hover{background:rgba(255,255,255,0.06)}
-.dd-menu-icon{display:flex;flex-direction:column;gap:4px;width:16px}
-.dd-menu-icon span{display:block;height:2px;border-radius:1px;background:#8892aa}
-.dd-menu-icon span:nth-child(2){width:70%}
-.dd-exit-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:8px;color:#8892aa;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s}
-.dd-exit-btn:hover{background:rgba(255,255,255,0.09);color:#e2e6f0}
-/* ── Resumen desktop v2 ── */
-.dd-wrap{width:100%;max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
-.dd-page-title{font-size:13px;font-weight:700;color:#c8d0e0;margin-left:6px}
-.dd-export-btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(255,255,255,.04);color:#c8d0e0;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
-.dd-export-btn:hover,.dd-export-btn:focus-visible{background:rgba(108,143,255,.12);border-color:rgba(108,143,255,.4);color:#e2e6f0}
-.dd-export-btn i{font-size:15px;color:#6c8fff}
-.dd-month-btn{width:32px;height:32px;font-size:15px}
-.dd-sec-lbl,.dd-kpi-lbl{font-size:11px}
-.dd-kpi-strip{grid-template-columns:1.35fr 1fr 1fr 1fr}
-.dd-kpi-hero{border-width:1px}
-.dd-kpi-hero .dd-kpi-val{font-size:30px}
-.dd-kpi-hero.ok{border-color:rgba(52,211,153,.35);background:linear-gradient(160deg,rgba(52,211,153,.10),#151a28 60%)}
-.dd-kpi-hero.ok .dd-kpi-val{color:#34d399}.dd-kpi-hero.ok .dd-kpi-div{background:#34d399}.dd-kpi-hero.ok .dd-kpi-chip{background:rgba(52,211,153,.14);color:#34d399}
-.dd-kpi-hero.warn{border-color:rgba(251,191,36,.35);background:linear-gradient(160deg,rgba(251,191,36,.10),#151a28 60%)}
-.dd-kpi-hero.warn .dd-kpi-val{color:#fbbf24}.dd-kpi-hero.warn .dd-kpi-div{background:#fbbf24}.dd-kpi-hero.warn .dd-kpi-chip{background:rgba(251,191,36,.14);color:#fbbf24}
-.dd-kpi-hero.neg{border-color:rgba(248,113,113,.45);background:linear-gradient(160deg,rgba(248,113,113,.14),#151a28 60%)}
-.dd-kpi-hero.neg .dd-kpi-val{color:#f87171}.dd-kpi-hero.neg .dd-kpi-div{background:#f87171}.dd-kpi-hero.neg .dd-kpi-chip{background:rgba(248,113,113,.16);color:#f87171}
-.dd-kpi-hero.empty .dd-kpi-val{color:#8892aa}.dd-kpi-hero.empty .dd-kpi-div{background:rgba(255,255,255,.1)}
-.dd-two-col{grid-template-columns:1.25fr 1fr;align-items:start}
-.dd-card-row,.dd-svc-row{margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
-.dd-card-row:hover,.dd-svc-row:hover{background:rgba(255,255,255,.03)}
-.dd-svc-row{padding-top:10px;padding-bottom:10px}
-.dd-svc-bar{height:18px}
-.dd-svc-name{font-size:12.5px}
-.dd-svc-tag{font-size:10px;font-weight:600;color:#7f8aa6;margin-left:6px}
-.dd-empty{padding:12px 0;font-size:12px;color:#7f8aa6}
-.dd-chart-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
-.dd-chart-title{font-size:21px;font-weight:800}
-.dd-chart-sub{font-size:11px;color:#8892aa;margin-top:2px}
-.dd-chart-chip{font-size:10px;font-weight:700;border-radius:7px;padding:3px 8px;white-space:nowrap}
-.dd-chart{display:flex;gap:7px;height:120px}
-.dd-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
-.dd-col-plot{flex:1;width:100%;position:relative}
-.dd-col-zero{position:absolute;left:-4px;right:-4px;height:1px;background:rgba(255,255,255,.14)}
-.dd-col-bar{position:absolute;left:12%;right:12%;border-radius:4px}
-.dd-col-bar.nodata{border:1px dashed rgba(255,255,255,.14);height:6px;border-radius:3px}
-.dd-chart-empty{height:120px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#8892aa;border:1px dashed rgba(255,255,255,.1);border-radius:10px;padding:0 20px}
-.dd-dist{margin-top:16px;padding-top:13px;border-top:1px solid rgba(255,255,255,0.07)}
-.dd-dist-name{font-size:12px}
-.dd-dist-amt{font-size:11px;color:#8892aa;width:92px;text-align:right;flex-shrink:0}
-.dd-dist-pct{width:36px}
-.dd-kpi-chip{white-space:nowrap;flex-shrink:0}
-.dd-kpi-top{gap:8px}
-@media(max-width:1279px){.dd-chip-x{display:none}.dd-kpi-top{min-height:34px;align-items:flex-start}}
-.dd-cover{margin-top:12px;padding-top:11px;border-top:1px dashed rgba(255,255,255,.08)}
-.dd-cover-lbl{display:flex;justify-content:space-between;font-size:11px;color:#8892aa;margin-bottom:6px;gap:8px}
-.dd-cover-lbl b{color:#e2e6f0}
-.dd-cover-bar{display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px}
 
 
 /* ══ Páginas de carga v2 ══ */
@@ -595,7 +483,6 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 .card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .card-hint{font-size:12px;font-weight:600;color:var(--ink3)}
 .item-date{font-size:12px;color:var(--ink3);margin-right:4px;white-space:nowrap}
-#desktopDashboard.visible{position:fixed;inset:0;z-index:40}
 @media(min-width:1024px){
   .header{background:#0f1520;border-bottom:1px solid rgba(255,255,255,.07);height:54px;margin:-1.5rem -2rem 22px;padding:0 2rem;gap:14px;justify-content:flex-start}
   .burger-btn{border-color:rgba(255,255,255,.10);padding:6px 12px;gap:10px}
@@ -683,6 +570,37 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 </head>
 <body>
 <div class="container">
+<header class="dk-bar" id="dkBar">
+  <div class="dk-brand"><svg width="34" height="28" viewBox="0 0 34 28" aria-hidden="true"><path class="dk-logo-a" d="M8 2h22a3 3 0 0 1 2.6 4.5l-3.2 5.5a3 3 0 0 1-2.6 1.5H5a3 3 0 0 1-2.6-4.5L5.4 3.5A3 3 0 0 1 8 2z"/><path class="dk-logo-b" d="M6 16h14a3 3 0 0 1 2.6 4.5l-2.6 4.5a3 3 0 0 1-2.6 1.5H3.5a2 2 0 0 1-1.7-3l2.6-5A3 3 0 0 1 6 16z"/></svg><span>Mis Finanzas</span></div>
+  <nav class="dk-tabs" aria-label="Secciones">
+    <button class="dk-tab" id="dkt-resumen" data-click="dkIr" data-arg="resumen"><i class="ti ti-layout-dashboard" aria-hidden="true"></i>Resumen</button>
+    <button class="dk-tab" id="dkt-ingresos" data-click="dkIr" data-arg="ingresos"><i class="ti ti-wallet" aria-hidden="true"></i>Ingresos</button>
+    <button class="dk-tab" id="dkt-tarjetas" data-click="dkIr" data-arg="tarjetas"><i class="ti ti-credit-card" aria-hidden="true"></i>Tarjetas<span class="dk-tab-badge" id="dkb-tarjetas" hidden></span></button>
+    <button class="dk-tab" id="dkt-servicios" data-click="dkIr" data-arg="servicios"><i class="ti ti-bolt" aria-hidden="true"></i>Servicios<span class="dk-tab-badge" id="dkb-servicios" hidden></span></button>
+    <button class="dk-tab" id="dkt-gastos" data-click="dkIr" data-arg="gastos"><i class="ti ti-shopping-cart" aria-hidden="true"></i>Gastos</button>
+    <button class="dk-tab" id="dkt-analisis" data-click="dkIr" data-arg="analisis"><i class="ti ti-chart-bar" aria-hidden="true"></i>Análisis</button>
+  </nav>
+  <div class="dk-right">
+    <div class="dk-month" role="group" aria-label="Mes">
+      <button data-click="changeMonth" data-arg="-1" aria-label="Mes anterior"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+      <span id="dkMes" aria-live="polite">—</span>
+      <button data-click="changeMonth" data-arg="1" aria-label="Mes siguiente"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+    </div>
+    <div class="dk-theme" role="group" aria-label="Tema">
+      <button id="dkTemaClaro" data-click="dkTema" data-arg="claro" aria-label="Tema claro" aria-pressed="true"><i class="ti ti-sun" aria-hidden="true"></i></button>
+      <button id="dkTemaOscuro" data-click="dkTema" data-arg="oscuro" aria-label="Tema oscuro" aria-pressed="false"><i class="ti ti-moon" aria-hidden="true"></i></button>
+    </div>
+    <span class="dk-nube off" id="dkNube" role="status" aria-label="Desconectado" title="Desconectado"><i class="ti ti-cloud-off" aria-hidden="true"></i></span>
+    <div class="dk-cuenta">
+      <button class="dk-cuenta-btn" id="dkCuentaBtn" data-click="dkMenu" aria-haspopup="menu" aria-expanded="false" aria-controls="dkMenu"><span class="dk-av" id="dkAv" aria-hidden="true">?</span><span class="dk-nombre" id="dkNombre">Tu cuenta</span><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
+      <div class="dk-menu" id="dkMenu" role="menu" aria-label="Tu cuenta" hidden>
+        <div class="dk-menu-head"><b id="dkMenuNombre">Tu cuenta</b><span id="dkMenuSync">Datos en tu Google Drive</span></div>
+        <button role="menuitem" data-click="exportResumenPDF"><i class="ti ti-file-type-pdf" aria-hidden="true"></i>Exportar resumen del mes</button>
+        <button role="menuitem" class="dk-salir" data-click="signOutDk"><i class="ti ti-logout" aria-hidden="true"></i>Salir</button>
+      </div>
+    </div>
+  </div>
+</header>
 <div class="header">
   <button class="burger-btn" id="menuBtn" data-click="toggleDrawer">
     <div class="burger-icon"><span></span><span></span><span></span></div>
@@ -774,67 +692,10 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   <p style="font-size:11px;color:var(--ink3);margin-top:1rem;margin-bottom:0">Tus datos se guardan en tu propio Google Drive. Nadie más tiene acceso.</p>
 </div>
 
-<!-- ── DESKTOP DASHBOARD ── -->
+<!-- ── ESCRITORIO: Resumen y Análisis (los arma escritorio.js) ── -->
 <div id="desktopDashboard">
-  <div class="dd-topbar">
-    <button class="dd-menu-btn" data-click="toggleDrawer" title="Menú">
-      <span class="dd-menu-icon"><span></span><span></span><span></span></span>Finanzas
-    </button>
-    <span class="dd-page-title">Resumen</span>
-    <button class="dd-export-btn" data-click="exportResumenPDF" title="Exportar el resumen del mes (se abre listo para guardar como PDF)"><i class="ti ti-file-type-pdf"></i> Exportar resumen</button>
-    <div class="dd-topbar-right">
-      <div class="dd-month-nav">
-        <button class="dd-month-btn" data-click="changeMonth" data-arg="-1" aria-label="Mes anterior">‹</button>
-        <span class="dd-month-label" id="dd-month-label">—</span>
-        <button class="dd-month-btn" data-click="changeMonth" data-arg="1" aria-label="Mes siguiente">›</button>
-      </div>
-      <div class="dd-sync-pill" id="dd-sync-pill">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span id="dd-sync-text">Sincronizado</span>
-      </div>
-      <div class="dd-avatar" id="dd-avatar" aria-hidden="true">EF</div>
-    </div>
-  </div>
-  <main class="dd-body"><div class="dd-wrap">
-    <!-- KPI: el resultado del mes primero -->
-    <div>
-      <div class="dd-sec-lbl">Este mes</div>
-      <div class="dd-kpi-strip">
-        <div class="dd-kpi dd-kpi-hero" id="dd-kpi-disp"><div class="dd-kpi-top"><span class="dd-kpi-lbl" id="dd-l-disp">Disponible</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-disp"></span></div><div class="dd-kpi-val" id="dd-v-disp">—</div><div class="dd-kpi-sub" id="dd-s-disp"></div><div class="dd-kpi-div"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Ingresos</span></div><div class="dd-kpi-val" id="dd-v-ing" style="color:#34d399">—</div><div class="dd-kpi-sub" id="dd-s-ing"></div><div class="dd-kpi-div" style="background:#34d399"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Tarjetas pagadas</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-tc" style="background:rgba(167,139,250,0.14);color:#c4b5fd"></span></div><div class="dd-kpi-val" id="dd-v-tc" style="color:#c4b5fd">—</div><div class="dd-kpi-sub" id="dd-s-tc"></div><div class="dd-kpi-div" style="background:#a78bfa"></div></div>
-        <div class="dd-kpi"><div class="dd-kpi-top"><span class="dd-kpi-lbl">Servicios y gastos</span><span class="dd-kpi-chip" title="Porcentaje del ingreso del mes" id="dd-chip-sv" style="background:rgba(251,191,36,0.10);color:#fbbf24"></span></div><div class="dd-kpi-val" id="dd-v-sv" style="color:#fbbf24">—</div><div class="dd-kpi-sub" id="dd-s-sv"></div><div class="dd-kpi-div" style="background:#fbbf24"></div></div>
-      </div>
-    </div>
-    <div class="dd-two-col">
-      <div class="dd-left-col">
-        <div class="dd-panel">
-          <div class="dd-panel-hdr"><span class="dd-panel-title">Tarjetas de crédito</span><span class="dd-panel-amt" id="dd-tc-total-lbl"></span></div>
-          <div class="dd-panel-body" id="dd-tarjetas-list"></div>
-        </div>
-        <div class="dd-panel">
-          <div class="dd-panel-hdr"><span class="dd-panel-title">Servicios y gastos</span><span class="dd-panel-amt" id="dd-svc-total-lbl"></span></div>
-          <div class="dd-panel-body" id="dd-svc-list"></div>
-        </div>
-      </div>
-      <div class="dd-right-panel">
-        <div class="dd-chart-head">
-          <div>
-            <div class="dd-sec-lbl" style="margin-bottom:2px">Disponible por mes</div>
-            <div class="dd-chart-title" id="dd-chart-title">—</div>
-            <div class="dd-chart-sub" id="dd-chart-sub"></div>
-          </div>
-          <span class="dd-chart-chip" id="dd-chart-chip"></span>
-        </div>
-        <div id="dd-chart"></div>
-        <div class="dd-dist">
-          <div class="dd-sec-lbl" style="margin-bottom:2px">Distribución de <span id="dd-dist-month"></span></div>
-          <div class="dd-chart-sub" id="dd-dist-base" style="margin-bottom:10px"></div>
-          <div id="dd-dist-rows"></div>
-        </div>
-      </div>
-    </div>
-  </div></main>
+  <div id="dkResumen" class="dk-panel"></div>
+  <div id="dkAnalisis" class="dk-panel" hidden></div>
 </div>
 
 <div id="appContent" style="display:none">
@@ -874,15 +735,15 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   </div><!-- /resumen-layout -->
 </div>
 
-<div id="view-ingresos" class="view"><div class="page-split"><div class="page-col">
+<div id="view-ingresos" class="view"><div class="dk-only dk-pagehead" id="dkHead-ingresos"></div><div class="page-split"><div class="page-col">
   <div class="card"><h2 class="card-h">Sueldo neto<span class="card-hint" id="hint-sueldo"></span></h2><div class="field-row"><label for="sueldo">Monto del mes</label><div class="money-field"><span>$</span><input class="money" type="text" inputmode="decimal" autocomplete="off" id="sueldo" placeholder="0" data-change="setSueldo"></div></div></div>
   <div class="card"><h2 class="card-h">Ingresos extra<span class="card-hint" id="hint-extras"></span></h2><div id="extra-list"></div>
     <div class="add-row"><input type="text" id="extra-name" placeholder="Descripción" aria-label="Descripción del ingreso"><div class="money-field"><span>$</span><input class="money" type="text" inputmode="decimal" autocomplete="off" id="extra-amt" placeholder="Monto" aria-label="Monto del ingreso"></div><button class="btn primary" data-click="addExtra" aria-label="Agregar ingreso"><i class="ti ti-plus"></i><span class="btn-txt"> Agregar</span></button></div>
   </div>
   <div class="page-total"><div><div class="page-total-lbl">Total ingresos del mes</div><div class="page-total-sub" id="tot-ingresos-sub"></div></div><div class="page-total-amt" id="tot-ingresos">$0</div></div>
 </div><aside class="page-side" id="side-ingresos" aria-label="Resumen de la página"></aside></div></div>
-<div id="view-tarjetas" class="view"><div class="page-split tc-split"><div class="tc-main"><div class="page-total tc-summary" id="tc-summary" style="display:none"></div><div id="tarjetas-container" class="tarjetas-grid"></div><button class="btn tarjetas-add-btn" data-click="addTarjeta"><i class="ti ti-plus"></i> Agregar tarjeta</button></div><aside class="page-side" id="side-tarjetas" aria-label="Resumen de tarjetas"></aside></div></div>
-<div id="view-servicios" class="view"><div class="page-split"><div class="page-col">
+<div id="view-tarjetas" class="view"><div class="dk-only dk-pagehead" id="dkHead-tarjetas"></div><div class="page-split tc-split"><div class="tc-main"><div class="page-total tc-summary" id="tc-summary" style="display:none"></div><div id="tarjetas-container" class="tarjetas-grid"></div><button class="btn tarjetas-add-btn" data-click="addTarjeta"><i class="ti ti-plus"></i> Agregar tarjeta</button></div><aside class="page-side" id="side-tarjetas" aria-label="Resumen de tarjetas"></aside></div><section class="dk-only dk-card dk-consumos" id="dkConsumos" aria-label="Consumos del mes"></section></div>
+<div id="view-servicios" class="view"><div class="dk-only dk-pagehead" id="dkHead-servicios"></div><div class="page-split"><div class="page-col">
   <div class="card">
     <h2>Servicios</h2>
     <p class="page-hint">Se repiten todos los meses. Cargá cuánto pagaste este mes y subí el comprobante.</p>
@@ -894,7 +755,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
   </div>
   <div class="page-total"><div><div class="page-total-lbl">Total servicios del mes</div><div class="page-total-sub" id="tot-servicios-sub"></div></div><div class="page-total-amt" id="tot-servicios">$0</div></div>
 </div><aside class="page-side" id="side-servicios" aria-label="Resumen de la página"></aside></div></div>
-<div id="view-gastos" class="view"><div class="page-split"><div class="page-col">
+<div id="view-gastos" class="view"><div class="dk-only dk-pagehead" id="dkHead-gastos"></div><div class="page-split"><div class="page-col">
   <div class="card"><h2 class="card-h">Super / Mercado<span class="card-hint" id="hint-super"></span></h2><div class="field-row"><label for="super-amt">Gastado este mes</label><div class="money-field"><span>$</span><input class="money" type="text" inputmode="decimal" autocomplete="off" id="super-amt" placeholder="0" data-change="setSuper"></div></div></div>
   <div class="card"><h2 class="card-h">Gastos extra del mes<span class="card-hint" id="hint-gastos"></span></h2><div id="gastos-extra-list"></div>
     <div class="add-row"><input type="text" id="gextra-name" placeholder="Descripción" aria-label="Descripción del gasto"><div class="money-field"><span>$</span><input class="money" type="text" inputmode="decimal" autocomplete="off" id="gextra-amt" placeholder="Monto" aria-label="Monto del gasto"></div><button class="btn primary" data-click="addGastoExtra" aria-label="Agregar gasto"><i class="ti ti-plus"></i><span class="btn-txt"> Agregar</span></button></div>
@@ -917,6 +778,7 @@ h2{font-size:15px;font-weight:600;margin-bottom:12px;color:var(--ink)}
 <script src="lib/xlsx.full.min.js"></script>
 <script src="lib/pdf.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=2641ae95af"></script>
+<script src="app.js?v=348af21fc2"></script>
+<script src="escritorio.js?v=73301eeb70"></script>
 </body>
 </html>

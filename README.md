@@ -80,6 +80,12 @@ El script **no** se ejecuta con `sudo`: te pide la contraseña sólo para regist
 - Los datos del mes quedan guardados en el navegador para trabajar más rápido, a nombre de tu cuenta de
   Google. Si en la misma compu entra otra cuenta, los tuyos se apartan (no los ve ni se suben a su Drive)
   y vuelven cuando entrás vos. *Salir* los borra del navegador.
+- **En la PC** (pantallas de 1024 px o más) la app tiene su propia versión: pestañas arriba (Resumen,
+  Ingresos, Tarjetas, Servicios, Gastos y Análisis), mes, tema claro u oscuro (el botón del sol y la luna;
+  se recuerda en ese navegador), la nube de sincronización y tu cuenta con *Exportar* y *Salir*.
+  El ojo del Resumen difumina los montos si alguien mira la pantalla. En Tarjetas, debajo de las tarjetas,
+  están todos los consumos de los resúmenes juntos, con buscador y filtro por tarjeta. El código está en
+  `escritorio.js` y `escritorio.css` (esta hoja sólo se aplica desde 1024 px; el celular no cambia).
 - En el celular las secciones están en la barra de abajo (el ícono con tus iniciales abre tu cuenta y *Salir*);
   en la PC, en el menú desplegable.
 - La nube de arriba indica la sincronización: verde = sincronizado, rojo = no se pudo guardar,

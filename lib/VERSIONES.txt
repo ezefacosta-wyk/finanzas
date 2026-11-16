@@ -4,3 +4,5 @@ pdf.min.js / pdf.worker.min.js  pdfjs-dist 3.11.174 (npm). Se usa con isEvalSupp
 xlsx.full.min.js                SheetJS 0.20.3, copia del paquete npm @e965/xlsx@0.20.3 (republica el build oficial de cdn.sheetjs.com).
                                 Corrige CVE-2023-30533 y CVE-2024-22363.
 tabler/                         @tabler/icons-webfont 3.19.0 (npm).
+fonts/plus-jakarta-sans-latin-wght-normal.woff2  Plus Jakarta Sans (variable, latín) de @fontsource-variable/plus-jakarta-sans 5.3.0 (npm).
+                                Licencia SIL OFL 1.1 (fonts/PlusJakartaSans-OFL.txt). Se usa sólo en la versión de escritorio.
